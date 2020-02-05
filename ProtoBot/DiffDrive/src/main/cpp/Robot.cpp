@@ -21,6 +21,7 @@ class Robot : public frc::TimedRobot {
   WPI_TalonSRX m_leftrear{2};
   WPI_TalonSRX m_rightfront{7};
   WPI_TalonSRX m_rightrear{8};
+  WPI_TalonSRX m_shooter{6};
   frc::SpeedControllerGroup m_left{m_leftfront, m_leftrear};
   frc::SpeedControllerGroup m_right{m_rightfront, m_rightrear};
   frc::DifferentialDrive m_robotDrive{m_left, m_right};
@@ -32,6 +33,14 @@ class Robot : public frc::TimedRobot {
     // Drive with arcade style
     m_robotDrive.ArcadeDrive(-m_stick.GetY(), m_stick.GetX());
     //m_right.Set(m_stick.GetY());
+    switch(m_stick.GetPOV(0)) {
+      case 0: m_shooter.Set(-0.25); break;
+      case 90: m_shooter.Set(-0.5); break;
+      case 180: m_shooter.Set(-0.75); break;
+      case 270: m_shooter.Set(-1); break;
+      default: m_shooter.Set(0);
+    }
+    
   }
 };
 
