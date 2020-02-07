@@ -11,6 +11,7 @@
 #include <frc/drive/DifferentialDrive.h>
 #include <frc/SpeedControllerGroup.h>
 #include "ctre/Phoenix.h"
+#include <frc/controller/PIDController.h>
 
 /**
  * This is a demo program showing the use of the DifferentialDrive class.
@@ -28,6 +29,11 @@ class Robot : public frc::TimedRobot {
   //frc::DifferentialDrive m_robotDrive{m_right, m_left};
   frc::Joystick m_stick{0};
 
+  static constexpr double kP = -5.0;
+  static constexpr double kI = -0.02;
+  static constexpr double kD = -2.0;
+  frc2::PIDController m_pidController{kP, kI, kD};
+
  public:
   void TeleopPeriodic() {
     // Drive with arcade style
@@ -40,8 +46,8 @@ class Robot : public frc::TimedRobot {
       case 270: m_shooter.Set(-1); break;
       default: m_shooter.Set(0);
     }
-    
   }
+
 };
 
 #ifndef RUNNING_FRC_TESTS
