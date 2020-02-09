@@ -152,10 +152,19 @@ void Robot::TeleopPeriodic() {
     }
 
     // center on target
-    m_pidController.SetSetpoint(0);
-    double diff_speed = m_pidController.Calculate(targetOffsetAngle_Horizontal);
-    speed_left -= diff_speed;
-    speed_right += diff_speed;
+    
+    // m_pidController.SetSetpoint(0);
+    // double diff_speed = m_pidController.Calculate(targetOffsetAngle_Horizontal);
+    // speed_left -= diff_speed;
+    // speed_right += diff_speed;
+
+    if (targetOffsetAngle_Horizontal > TARGET_TOLERANCE_H) {
+      speed_left += SPEED_ROTATE;
+      speed_right -= SPEED_ROTATE;
+    } else if (targetOffsetAngle_Horizontal < -TARGET_TOLERANCE_H) {
+      speed_left -= SPEED_ROTATE;
+      speed_right += SPEED_ROTATE;
+    }
 
     // move robot
     m_robotDrive.TankDrive(speed_left, speed_right, false);
