@@ -24,6 +24,9 @@
 
 #include <frc/controller/PIDController.h>
 
+#include <frc/SpeedControllerGroup.h>
+#include "ctre/Phoenix.h"
+
 class Robot : public frc::TimedRobot {
  public:
   void RobotInit() override;
@@ -53,8 +56,12 @@ class Robot : public frc::TimedRobot {
   frc2::PIDController m_pidController{kP, kI, kD};
 
   // Robot drive system  
-  frc::Spark m_left{0};  
-  frc::Spark m_right{1};  
+  WPI_TalonSRX m_leftfront{1};
+  WPI_TalonSRX m_leftrear{2};
+  WPI_TalonSRX m_rightfront{7};
+  WPI_TalonSRX m_rightrear{8}; 
+  frc::SpeedControllerGroup m_left{m_leftfront, m_leftrear};
+  frc::SpeedControllerGroup m_right{m_rightfront, m_rightrear};
   frc::DifferentialDrive m_robotDrive{m_left, m_right};
   frc::Joystick m_stick{0};  
   frc::Joystick m_stick_copilot{1};  
