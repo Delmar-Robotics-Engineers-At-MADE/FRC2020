@@ -60,6 +60,7 @@ class Robot : public frc::TimedRobot {
   WPI_TalonSRX m_leftrear{2};
   WPI_TalonSRX m_rightfront{7};
   WPI_TalonSRX m_rightrear{8}; 
+  WPI_TalonSRX m_shooter{6};
   frc::SpeedControllerGroup m_left{m_leftfront, m_leftrear};
   frc::SpeedControllerGroup m_right{m_rightfront, m_rightrear};
   frc::DifferentialDrive m_robotDrive{m_left, m_right};

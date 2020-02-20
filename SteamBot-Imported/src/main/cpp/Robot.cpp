@@ -91,12 +91,15 @@ void Robot::AutonomousPeriodic() {
 #define TARGET_TOLERANCE_V 4
 #define TARGET_TOLERANCE_H 8
 #define LIMELIGHT_ANGLE_DEFAULT 65
-#define SPEED_ROTATE 0.3
-#define SPEED_PURSUE 0.3
+#define SPEED_ROTATE 0.25
+#define SPEED_PURSUE 0.25
 #define MIN_TARGET_AREA_PERCENT 1.0
 using namespace std;
 
 void Robot::TeleopPeriodic() {
+
+  wpi::outs() << m_stick.GetRawAxis(5) << "\n";
+  m_shooter.Set(m_stick.GetRawAxis(5));
 
   bool ok_to_pursue_button_presssed = m_stick.GetRawButton(2);
   bool not_ok_to_pursue_button_presssed = m_stick.GetRawButton(3);
@@ -128,6 +131,7 @@ void Robot::TeleopPeriodic() {
 
   double targetSeen = m_limetable->GetNumber("tv",0.0);
   double targetArea = m_limetable->GetNumber("ta",0.0);
+
   if (targetSeen != 0.0 && targetArea > MIN_TARGET_AREA_PERCENT) {  // tv is true if there is a target detected
     double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
     double targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
