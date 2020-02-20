@@ -18,6 +18,15 @@
 
 #include <frc/controller/PIDController.h>
 
+#define MOTOR_SCALE 1.7
+#define TARGET_TOLERANCE_V 4
+#define TARGET_TOLERANCE_H 8
+#define LIMELIGHT_ANGLE_DEFAULT 65
+#define SPEED_ROTATE 0.25
+#define SPEED_PURSUE 0.25
+#define MIN_TARGET_AREA_PERCENT 1.0
+using namespace std;
+
 void Robot::RobotInit() {
   m_limetable = nt::NetworkTableInstance::GetDefault().GetTable("limelight");
   m_robotDrive.SetRightSideInverted(true);
@@ -27,6 +36,8 @@ void Robot::RobotInit() {
   m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
   m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
   frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
+
+  m_pidController.SetTolerance(TARGET_TOLERANCE_H);
 
   wpi::outs() << "hello from RobotInit\n";
 }
@@ -86,15 +97,6 @@ void Robot::AutonomousPeriodic() {
     }
   }
 }
-
-#define MOTOR_SCALE 1.7
-#define TARGET_TOLERANCE_V 4
-#define TARGET_TOLERANCE_H 8
-#define LIMELIGHT_ANGLE_DEFAULT 65
-#define SPEED_ROTATE 0.25
-#define SPEED_PURSUE 0.25
-#define MIN_TARGET_AREA_PERCENT 1.0
-using namespace std;
 
 void Robot::TeleopPeriodic() {
 
@@ -173,6 +175,11 @@ void Robot::TeleopPeriodic() {
     // move robot
     m_robotDrive.TankDrive(speed_left, speed_right, false);
     // m_robotDrive.TankDrive(0.2, 0.2, false);
+
+    // check to see if we're within tolerance, and if so, reset
+    if (m_pidController.AtSetpoint()) {
+      m_pidController.Reset(); // clears out integral state, etc
+    }
 
   } else {  // no vision target seen
     //   leave vertical alone, was... m_limeServo.SetAngle(LIMELIGHT_ANGLE_DEFAULT);

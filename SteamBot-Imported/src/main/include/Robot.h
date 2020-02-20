@@ -51,7 +51,7 @@ class Robot : public frc::TimedRobot {
 
   // for PID
   static constexpr double kP = 0.03;
-  static constexpr double kI = 0.0;
+  static constexpr double kI = 0.03;
   static constexpr double kD = 0.0;
   frc2::PIDController m_pidController{kP, kI, kD};
 
