@@ -50,7 +50,7 @@ class Robot : public frc::TimedRobot {
   std::shared_ptr<NetworkTable> m_limetable;  // for LimeLight
 
   // for PID
-  static constexpr double kP = 0.1;
+  static constexpr double kP = 0.03;
   static constexpr double kI = 0.0;
   static constexpr double kD = 0.0;
   frc2::PIDController m_pidController{kP, kI, kD};
@@ -59,6 +59,7 @@ class Robot : public frc::TimedRobot {
   WPI_TalonSRX m_leftfront{1};
   WPI_TalonSRX m_leftrear{2};
   WPI_TalonSRX m_rightfront{7};
+
   WPI_TalonSRX m_rightrear{8}; 
   WPI_TalonSRX m_shooter{6};
   frc::SpeedControllerGroup m_left{m_leftfront, m_leftrear};
