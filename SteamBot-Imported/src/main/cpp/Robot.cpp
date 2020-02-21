@@ -37,7 +37,7 @@ void Robot::RobotInit() {
   m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
   frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
 
-  m_pidController.SetTolerance(TARGET_TOLERANCE_H);
+  m_pidController.SetTolerance(4);
 
   wpi::outs() << "hello from RobotInit\n";
 }
@@ -100,7 +100,6 @@ void Robot::AutonomousPeriodic() {
 
 void Robot::TeleopPeriodic() {
 
-  wpi::outs() << m_stick.GetRawAxis(5) << "\n";
   m_shooter.Set(m_stick.GetRawAxis(5));
 
   bool ok_to_pursue_button_presssed = m_stick.GetRawButton(2);
