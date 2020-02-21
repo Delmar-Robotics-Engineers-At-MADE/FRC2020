@@ -38,8 +38,10 @@ void Robot::RobotInit() {
   frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
 
   m_pidController.SetTolerance(4);
+  m_pidControllerRange.SetTolerance(4);
 
   wpi::outs() << "hello from RobotInit\n";
+  printf ("hello with printf\n");
 }
 
 /**
@@ -150,11 +152,19 @@ void Robot::TeleopPeriodic() {
     m_limeServo.SetAngle(m_limeServoAngle);
 
     // drive toward target
-    if (m_okToPursue && targetArea <= 10.0 && targetArea > 5) { // pursue target until it's bigger
-      speed_left = SPEED_PURSUE; speed_right = SPEED_PURSUE;
-    } else if (m_okToPursue && targetArea > 10.0) { // back up!
-      speed_left = -SPEED_PURSUE; speed_right = -SPEED_PURSUE;
+
+    m_pidControllerRange.SetSetpoint(5);
+    double pursue_speed = m_pidControllerRange.Calculate(targetArea);
+    frc::SmartDashboard::PutNumber("DB/Slider 0", pursue_speed);
+    if (m_okToPursue && targetArea <= 20.0 && targetArea > 1) { // pursue target until it's bigger
+      speed_right = pursue_speed; speed_left = pursue_speed;
     }
+
+    // if (m_okToPursue && targetArea <= 10.0 && targetArea > 5) { // pursue target until it's bigger
+    //   speed_left = SPEED_PURSUE; speed_right = SPEED_PURSUE;
+    // } else if (m_okToPursue && targetArea > 10.0) { // back up!
+    //   speed_left = -SPEED_PURSUE; speed_right = -SPEED_PURSUE;
+    // }
 
     // center on target
     
@@ -178,6 +188,9 @@ void Robot::TeleopPeriodic() {
     // check to see if we're within tolerance, and if so, reset
     if (m_pidController.AtSetpoint()) {
       m_pidController.Reset(); // clears out integral state, etc
+    }
+    if (m_pidControllerRange.AtSetpoint()) {
+      m_pidControllerRange.Reset(); // clears out integral state, etc
     }
 
   } else {  // no vision target seen

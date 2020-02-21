@@ -53,7 +53,11 @@ class Robot : public frc::TimedRobot {
   static constexpr double kP = 0.02;
   static constexpr double kI = 0.01;
   static constexpr double kD = 0.0;
+  static constexpr double kPr = 0.08;
+  static constexpr double kIr = 0.04;
+  static constexpr double kDr = 0.0;
   frc2::PIDController m_pidController{kP, kI, kD};
+  frc2::PIDController m_pidControllerRange{kPr, kIr, kDr};
 
   // Robot drive system  
   WPI_TalonSRX m_leftfront{1};
