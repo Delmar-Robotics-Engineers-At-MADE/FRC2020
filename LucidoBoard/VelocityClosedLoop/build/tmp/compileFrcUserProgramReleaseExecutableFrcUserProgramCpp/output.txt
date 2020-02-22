@@ -1,0 +1,9 @@
+See file:///C:/Robotics/FRC2020/LucidoBoard/VelocityClosedLoop/build/tmp/compileFrcUserProgramReleaseExecutableFrcUserProgramCpp/output.txt for all output for compileFrcUserProgramReleaseExecutableFrcUserProgramCpp.
+compiling Robot.cpp successful.
+In file included from C:\Robotics\FRC2020\LucidoBoard\VelocityClosedLoop\src\main\cpp\Robot.cpp:44:0:
+C:\Users\VEX\.gradle\caches\transforms-2\files-2.1\f78589b1f173909e18ca9d5419a0a5fa\wpilibc-cpp-2020.2.2-headers/frc/WPILib.h:14:2: warning: #warning is a GCC extension
+ #warning "Including this header drastically increases compilation times and is bad style. Include only what you use instead."
+  ^~~~~~~
+C:\Users\VEX\.gradle\caches\transforms-2\files-2.1\f78589b1f173909e18ca9d5419a0a5fa\wpilibc-cpp-2020.2.2-headers/frc/WPILib.h:14:2: warning: #warning "Including this header drastically increases compilation times and is bad style. Include only what you use instead." [-Wcpp]
+
+Finished compileFrcUserProgramReleaseExecutableFrcUserProgramCpp, see full log file:///C:/Robotics/FRC2020/LucidoBoard/VelocityClosedLoop/build/tmp/compileFrcUserProgramReleaseExecutableFrcUserProgramCpp/output.txt.
