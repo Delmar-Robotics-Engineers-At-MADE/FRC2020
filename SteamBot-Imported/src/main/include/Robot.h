@@ -52,7 +52,7 @@ class Robot : public frc::TimedRobot {
   // for PID
   static constexpr double kP = 0.02;
   static constexpr double kI = 0.01;
-  static constexpr double kD = 0.0;
+  static constexpr double kD = 0.001;
   static constexpr double kPr = 0.08;
   static constexpr double kIr = 0.04;
   static constexpr double kDr = 0.0;
