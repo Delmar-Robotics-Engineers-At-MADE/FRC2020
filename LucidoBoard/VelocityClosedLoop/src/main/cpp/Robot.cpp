@@ -63,9 +63,15 @@ public:
 		m_shooter_port->Follow(*m_shooter_star);
     	m_shooter_star->SetInverted(true);
     	m_shooter_port->SetInverted(false);
+		
+		// breaking mode
+		m_shooter_star->SetNeutralMode(NeutralMode::Coast);
+		m_shooter_port->SetNeutralMode(NeutralMode::Coast);
+
 
         /* first choose the sensor */
-		//_talon->ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, kTimeoutMs);
+		m_shooter_star->ConfigSelectedFeedbackSensor(FeedbackDevice::IntegratedSensor, 0, kTimeoutMs);
+		// phase for TalonFX integrated sensor is automatically correct
 		//_talon->SetSensorPhase(true);
 
 		/* set the peak and nominal outputs */
@@ -98,7 +104,9 @@ public:
 			 * 4096 Units/Rev * 500 RPM / 600 100ms/min in either direction:
 			 * velocity setpoint is in units/100ms
 			 */
-			double targetVelocity_UnitsPer100ms = leftYstick * 15000.0 * 4096 / 600;
+			// MJS: Falcon sensor reports 2048 units/rev
+
+			double targetVelocity_UnitsPer100ms = leftYstick * 6000.0 * 2048 / 600;
 			/* 500 RPM in either direction */
         	m_shooter_star->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms); 
 
