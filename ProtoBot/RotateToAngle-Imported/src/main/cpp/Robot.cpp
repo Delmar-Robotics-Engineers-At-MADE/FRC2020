@@ -56,32 +56,32 @@ void Robot::RobotInit() {
 
   robotDrive->SetExpiration(0.1);
   m_left.SetInverted(true); // invert the left side motors
-  try
-  {
-    /***********************************************************************
-     * navX-MXP:
-     * - Communication via RoboRIO MXP (SPI, I2C) and USB.            
-     * - See http://navx-mxp.kauailabs.com/guidance/selecting-an-interface.
-     * 
-     * navX-Micro:
-     * - Communication via I2C (RoboRIO MXP or Onboard) and USB.
-     * - See http://navx-micro.kauailabs.com/guidance/selecting-an-interface.
-     * 
-     * VMX-pi:
-     * - Communication via USB.
-     * - See https://vmx-pi.kauailabs.com/installation/roborio-installation/
-     * 
-     * Multiple navX-model devices on a single robot are supported.
-     ************************************************************************/
-    ahrs = new AHRS(SPI::Port::kMXP);
-  }
-  catch (std::exception &ex)
-  {
-    std::string what_string = ex.what();
-    std::string err_msg("Error instantiating navX MXP:  " + what_string);
-    const char *p_err_msg = err_msg.c_str();
-    DriverStation::ReportError(p_err_msg);
-  }
+  // try
+  // {
+  //   /***********************************************************************
+  //    * navX-MXP:
+  //    * - Communication via RoboRIO MXP (SPI, I2C) and USB.            
+  //    * - See http://navx-mxp.kauailabs.com/guidance/selecting-an-interface.
+  //    * 
+  //    * navX-Micro:
+  //    * - Communication via I2C (RoboRIO MXP or Onboard) and USB.
+  //    * - See http://navx-micro.kauailabs.com/guidance/selecting-an-interface.
+  //    * 
+  //    * VMX-pi:
+  //    * - Communication via USB.
+  //    * - See https://vmx-pi.kauailabs.com/installation/roborio-installation/
+  //    * 
+  //    * Multiple navX-model devices on a single robot are supported.
+  //    ************************************************************************/
+  //   ahrs = new AHRS(SPI::Port::kMXP);
+  // }
+  // catch (std::exception &ex)
+  // {
+  //   std::string what_string = ex.what();
+  //   std::string err_msg("Error instantiating navX MXP:  " + what_string);
+  //   const char *p_err_msg = err_msg.c_str();
+  //   DriverStation::ReportError(p_err_msg);
+  // }
   turnController = new PIDController(kP, kI, kD, kF, ahrs, this);
   turnController->SetInputRange(-180.0f,  180.0f);
   turnController->SetOutputRange(-1.0, 1.0);

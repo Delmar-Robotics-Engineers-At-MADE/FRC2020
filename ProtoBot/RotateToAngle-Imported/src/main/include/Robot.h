@@ -11,7 +11,7 @@
 
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/SendableChooser.h>
-#include <frc/drive/MecanumDrive.h>
+#include <frc/drive/DifferentialDrive.h>
 #include <frc/Joystick.h>
 // #include <frc/Spark.h>
 #include <frc/DriverStation.h>
@@ -27,6 +27,7 @@ using namespace frc;
 class Robot : public TimedRobot, public PIDOutput {
  public:
   void RobotInit() override;
+  //void RobotInit2() ;
   void RobotPeriodic() override;
   void AutonomousInit() override;
   void AutonomousPeriodic() override;
@@ -54,7 +55,7 @@ class Robot : public TimedRobot, public PIDOutput {
 
     const static int joystickChannel = 0;
 
-    MecanumDrive *robotDrive; // robot drive system
+    DifferentialDrive *robotDrive; // robot drive system
     Joystick *stick;          // only joystick
     AHRS *ahrs;
     PIDController *turnController;      // PID Controller
