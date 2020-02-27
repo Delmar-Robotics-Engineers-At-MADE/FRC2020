@@ -54,46 +54,49 @@ void Robot::RobotInit() {
   stick = new Joystick(joystickChannel);
 	rotateToAngleRate = 0.0f;
 
-  robotDrive->SetExpiration(0.1);
+  m_robotDrive.SetExpiration(0.1);
   m_left.SetInverted(true); // invert the left side motors
-  // try
-  // {
-  //   /***********************************************************************
-  //    * navX-MXP:
-  //    * - Communication via RoboRIO MXP (SPI, I2C) and USB.            
-  //    * - See http://navx-mxp.kauailabs.com/guidance/selecting-an-interface.
-  //    * 
-  //    * navX-Micro:
-  //    * - Communication via I2C (RoboRIO MXP or Onboard) and USB.
-  //    * - See http://navx-micro.kauailabs.com/guidance/selecting-an-interface.
-  //    * 
-  //    * VMX-pi:
-  //    * - Communication via USB.
-  //    * - See https://vmx-pi.kauailabs.com/installation/roborio-installation/
-  //    * 
-  //    * Multiple navX-model devices on a single robot are supported.
-  //    ************************************************************************/
-  //   ahrs = new AHRS(SPI::Port::kMXP);
-  // }
-  // catch (std::exception &ex)
-  // {
-  //   std::string what_string = ex.what();
-  //   std::string err_msg("Error instantiating navX MXP:  " + what_string);
-  //   const char *p_err_msg = err_msg.c_str();
-  //   DriverStation::ReportError(p_err_msg);
-  // }
-  turnController = new PIDController(kP, kI, kD, kF, ahrs, this);
-  turnController->SetInputRange(-180.0f,  180.0f);
-  turnController->SetOutputRange(-1.0, 1.0);
-  turnController->SetAbsoluteTolerance(kToleranceDegrees);
-  turnController->SetContinuous(true);
+  try
+  {
+    /***********************************************************************
+     * navX-MXP:
+     * - Communication via RoboRIO MXP (SPI, I2C) and USB.            
+     * - See http://navx-mxp.kauailabs.com/guidance/selecting-an-interface.
+     * 
+     * navX-Micro:
+     * - Communication via I2C (RoboRIO MXP or Onboard) and USB.
+     * - See http://navx-micro.kauailabs.com/guidance/selecting-an-interface.
+     * 
+     * VMX-pi:
+     * - Communication via USB.
+     * - See https://vmx-pi.kauailabs.com/installation/roborio-installation/
+     * 
+     * Multiple navX-model devices on a single robot are supported.
+     ************************************************************************/
+    ahrs = new AHRS(SPI::Port::kMXP);
+  }
+  catch (std::exception &ex)
+  {
+    std::string what_string = ex.what();
+    std::string err_msg("Error instantiating navX MXP:  " + what_string);
+    const char *p_err_msg = err_msg.c_str();
+    DriverStation::ReportError(p_err_msg);
+  }
+
+  // turnController = new PIDController(kP, kI, kD, kF, ahrs, this);
+  // turnController->SetInputRange(-180.0f,  180.0f);
+  // turnController->SetOutputRange(-1.0, 1.0);
+  // turnController->SetAbsoluteTolerance(kToleranceDegrees);
+  // turnController->SetContinuous(true);
+
+
 }
 
   /* This function is invoked periodically by the PID Controller, */
   /* based upon navX MXP yaw angle input and PID Coefficients.    */
-  void Robot::PIDWrite(double output) {
-      this->rotateToAngleRate = output;
-  }
+  // void Robot::PIDWrite(double output) {
+  //     this->rotateToAngleRate = output;
+  // }
 
 
 /**
@@ -118,9 +121,25 @@ void Robot::RobotPeriodic() {}
  * make sure to add them to the chooser code above as well.
  */
 void Robot::AutonomousInit() {
+    m_timer.Reset();
+    m_timer.Start();
 }
 
 void Robot::AutonomousPeriodic() {
+    // simple motion to validate motor configuration
+    // Drive for 2 seconds
+    if (m_timer.Get() < 2.0) {
+      m_robotDrive.TankDrive(0.5, 0); // left only
+    } else if (m_timer.Get() < 4.0) {
+      m_robotDrive.TankDrive(0, 0.5); // right only
+    } else if (m_timer.Get() < 6.0) {
+      // Drive forwards half speed
+      m_robotDrive.ArcadeDrive(0.5, 0.0);
+    } else {
+      // Stop robot
+      m_robotDrive.ArcadeDrive(0.0, 0.0);
+    }
+
 }
 
 void Robot::TeleopInit() {}
@@ -130,35 +149,45 @@ void Robot::TeleopPeriodic() {
   if ( reset_yaw_button_pressed ) {
       ahrs->ZeroYaw();
   }
+
+  // do PID calculations here instead of in callback
+  this->rotateToAngleRate = m_pidController.Calculate(ahrs->GetAngle());
+
   bool rotateToAngle = false;
   if ( stick->GetRawButton(2)) {
-      turnController->SetSetpoint(0.0f);
+      m_pidController.SetSetpoint(0.0f);
       rotateToAngle = true;
   } else if ( stick->GetRawButton(3)) {
-      turnController->SetSetpoint(90.0f);
+      m_pidController.SetSetpoint(90.0f);
       rotateToAngle = true;
   } else if ( stick->GetRawButton(4)) {
-      turnController->SetSetpoint(179.9f);
+      m_pidController.SetSetpoint(179.9f);
       rotateToAngle = true;
   } else if ( stick->GetRawButton(5)) {
-      turnController->SetSetpoint(-90.0f);
+      m_pidController.SetSetpoint(-90.0f);
       rotateToAngle = true;
   }
-  double currentRotationRate;
-  if ( rotateToAngle ) {
-      turnController->Enable();
-      currentRotationRate = rotateToAngleRate;
-  } else {
-      turnController->Disable();
-      currentRotationRate = stick->GetTwist();
-  }
+  // double currentRotationRate;
+  // if ( rotateToAngle ) {
+  //     currentRotationRate = rotateToAngleRate;
+  // } else {
+  //     m_pidController.Reset();
+  //     currentRotationRate = stick->GetTwist();
+  // }
   try {
     /* Use the joystick X axis for lateral movement,          */
     /* Y axis for forward movement, and the current           */
     /* calculated rotation rate (or joystick Z axis),         */
     /* depending upon whether "rotate to angle" is active.    */
-    robotDrive->DriveCartesian(stick->GetX(), stick->GetY(),
-                              currentRotationRate, ahrs->GetAngle());
+    if (rotateToAngle) {
+      // MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
+      m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
+    } else {
+      // not rotating; drive by stick
+      m_robotDrive.ArcadeDrive(stick->GetX(), stick->GetY());
+    }
+    
+    
   } catch (std::exception& ex ) {
     std::string err_string = "Error communicating with Drive System:  ";
     err_string += ex.what();
