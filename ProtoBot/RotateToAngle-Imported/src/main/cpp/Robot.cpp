@@ -55,7 +55,7 @@ void Robot::RobotInit() {
 	rotateToAngleRate = 0.0f;
 
   m_robotDrive.SetExpiration(0.1);
-  m_left.SetInverted(true); // invert the left side motors
+  //m_left.SetInverted(true); // invert the left side motors
   try
   {
     /***********************************************************************
@@ -129,9 +129,9 @@ void Robot::AutonomousPeriodic() {
     // simple motion to validate motor configuration
     // Drive for 2 seconds
     if (m_timer.Get() < 2.0) {
-      m_robotDrive.TankDrive(0.5, 0); // left only
+      m_robotDrive.TankDrive(0.5, 0); // left motor only
     } else if (m_timer.Get() < 4.0) {
-      m_robotDrive.TankDrive(0, 0.5); // right only
+      m_robotDrive.TankDrive(0, 0.5); // right motor only
     } else if (m_timer.Get() < 6.0) {
       // Drive forwards half speed
       m_robotDrive.ArcadeDrive(0.5, 0.0);
@@ -142,7 +142,9 @@ void Robot::AutonomousPeriodic() {
 
 }
 
-void Robot::TeleopInit() {}
+void Robot::TeleopInit() {
+  ahrs->ZeroYaw();
+}
 
 void Robot::TeleopPeriodic() {
   bool reset_yaw_button_pressed = stick->GetRawButton(1);
@@ -150,20 +152,23 @@ void Robot::TeleopPeriodic() {
       ahrs->ZeroYaw();
   }
 
+  frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
+
   // do PID calculations here instead of in callback
-  this->rotateToAngleRate = m_pidController.Calculate(ahrs->GetAngle());
+  rotateToAngleRate = m_pidController.Calculate(ahrs->GetAngle());
+  
 
   bool rotateToAngle = false;
-  if ( stick->GetRawButton(2)) {
+  if ( stick->GetPOV() == 0) {
       m_pidController.SetSetpoint(0.0f);
       rotateToAngle = true;
-  } else if ( stick->GetRawButton(3)) {
+  } else if ( stick->GetPOV() == 90) {
       m_pidController.SetSetpoint(90.0f);
       rotateToAngle = true;
-  } else if ( stick->GetRawButton(4)) {
+  } else if ( stick->GetPOV() == 180) {
       m_pidController.SetSetpoint(179.9f);
       rotateToAngle = true;
-  } else if ( stick->GetRawButton(5)) {
+  } else if ( stick->GetPOV() == 270) {
       m_pidController.SetSetpoint(-90.0f);
       rotateToAngle = true;
   }
@@ -184,7 +189,7 @@ void Robot::TeleopPeriodic() {
       m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
     } else {
       // not rotating; drive by stick
-      m_robotDrive.ArcadeDrive(stick->GetX(), stick->GetY());
+      m_robotDrive.ArcadeDrive(-stick->GetY(), stick->GetX());
     }
     
     

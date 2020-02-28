@@ -57,9 +57,9 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
     Joystick *stick;          // only joystick
     AHRS *ahrs;
 
-    static constexpr double kP = 0.02;
-    static constexpr double kI = 0.01;
-    static constexpr double kD = 0.001;
+    static constexpr double kP = 0.008;
+    static constexpr double kI = 0.001;
+    static constexpr double kD = 0.0005;
     frc2::PIDController m_pidController{kP, kI, kD};
     frc::Timer m_timer;
 
