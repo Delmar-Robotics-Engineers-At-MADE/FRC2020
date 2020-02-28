@@ -49,32 +49,41 @@ using namespace frc;
 
 class Robot: public TimedRobot {
 public:
-	TalonSRX * m_shooter = new TalonSRX(6); // 20 is starboard, 21 is port
+	TalonFX * m_shooter_star = new TalonFX(20); // 20 is starboard, 21 is port
+	TalonFX * m_shooter_port = new TalonFX(21); // 20 is starboard, 21 is port
 	Joystick * _joy = new Joystick(0);
 	std::string _sb;
 	int _loops = 0;
 
 	void RobotInit() {
-		m_shooter->ConfigFactoryDefault();
-	
-    	m_shooter->SetInverted(false);
+		m_shooter_star->ConfigFactoryDefault();
+		m_shooter_port->ConfigFactoryDefault();
+
+				/* set up followers */
+		m_shooter_port->Follow(*m_shooter_star);
+    	m_shooter_star->SetInverted(true);
+    	m_shooter_port->SetInverted(false);
 		
 		// breaking mode
-		m_shooter->SetNeutralMode(NeutralMode::Coast);
+		m_shooter_star->SetNeutralMode(NeutralMode::Coast);
+		m_shooter_port->SetNeutralMode(NeutralMode::Coast);
+
 
         /* first choose the sensor */
-		m_shooter->ConfigSelectedFeedbackSensor(FeedbackDevice::QuadEncoder, 0, kTimeoutMs);
+		m_shooter_star->ConfigSelectedFeedbackSensor(FeedbackDevice::IntegratedSensor, 0, kTimeoutMs);
 		// phase for TalonFX integrated sensor is automatically correct
 		//_talon->SetSensorPhase(true);
 
 		/* set the peak and nominal outputs */
-		m_shooter->ConfigNominalOutputForward(0, kTimeoutMs);
-		m_shooter->ConfigNominalOutputReverse(0, kTimeoutMs);
+		m_shooter_star->ConfigNominalOutputForward(0, kTimeoutMs);
+		m_shooter_star->ConfigNominalOutputReverse(0, kTimeoutMs);
+		m_shooter_star->ConfigPeakOutputForward(1, kTimeoutMs);
+		m_shooter_star->ConfigPeakOutputReverse(-1, kTimeoutMs);
 		/* set closed loop gains in slot0 */
-		m_shooter->Config_kF(kPIDLoopIdx, 0.1097, kTimeoutMs);
-		m_shooter->Config_kP(kPIDLoopIdx, 0.22, kTimeoutMs);
-		m_shooter->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
-		m_shooter->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_shooter_star->Config_kF(kPIDLoopIdx, 0.1097, kTimeoutMs);
+		m_shooter_star->Config_kP(kPIDLoopIdx, 0.22, kTimeoutMs);
+		m_shooter_star->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_shooter_star->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
 	}
 	/**
 	 * This function is called periodically during operator control
@@ -82,12 +91,12 @@ public:
 	void TeleopPeriodic() {
 		/* get gamepad axis */
 		double leftYstick = _joy->GetY();
-		double motorOutput = m_shooter->GetMotorOutputPercent();
+		double motorOutput = m_shooter_star->GetMotorOutputPercent();
 		/* prepare line to print */
 		_sb.append("\tout:");
 		_sb.append(std::to_string(motorOutput));
 		_sb.append("\tspd:");
-		_sb.append(std::to_string(m_shooter->GetSelectedSensorVelocity(kPIDLoopIdx)));
+		_sb.append(std::to_string(m_shooter_star->GetSelectedSensorVelocity(kPIDLoopIdx)));
 		/* while button1 is held down, closed-loop on target velocity */
 		if (_joy->GetRawButton(1)) {
         	/* Speed mode */
@@ -96,20 +105,19 @@ public:
 			 * velocity setpoint is in units/100ms
 			 */
 			// MJS: Falcon sensor reports 2048 units/rev
-			// MJS: VEX encoders have aparently 3350 units/rev
 
-			double targetVelocity_UnitsPer100ms = leftYstick * 1000.0 * 3350 / 600;
+			double targetVelocity_UnitsPer100ms = leftYstick * 6000.0 * 2048 / 600;
 			/* 500 RPM in either direction */
-        	m_shooter->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms); 
+        	m_shooter_star->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms); 
 
 			/* append more signals to print when in speed mode. */
 			_sb.append("\terrNative:");
-			_sb.append(std::to_string(m_shooter->GetClosedLoopError(kPIDLoopIdx)));
+			_sb.append(std::to_string(m_shooter_star->GetClosedLoopError(kPIDLoopIdx)));
 			_sb.append("\ttrg:");
 			_sb.append(std::to_string(targetVelocity_UnitsPer100ms));
         } else {
 			/* Percent voltage mode */
-			m_shooter->Set(ControlMode::PercentOutput, leftYstick);
+			m_shooter_star->Set(ControlMode::PercentOutput, leftYstick);
 		}
 		/* print every ten loops, printing too much too fast is generally bad for performance */
 		if (++_loops >= 10) {
