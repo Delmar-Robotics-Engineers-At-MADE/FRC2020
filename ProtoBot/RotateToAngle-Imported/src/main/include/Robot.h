@@ -37,6 +37,8 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
   //void PIDWrite(double output) override;
 
  private:
+    double TrimSpeed (double s);
+
     // Channels for the wheels
     const static int frontLeftChannel = 2;
     const static int rearLeftChannel = 3;
@@ -57,13 +59,13 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
     Joystick *stick;          // only joystick
     AHRS *ahrs;
 
-    static constexpr double kP = 0.008;
-    static constexpr double kI = 0.001;
-    static constexpr double kD = 0.0005;
-    frc2::PIDController m_pidController{kP, kI, kD};
+    double kP = 0.0035;
+    double kI = 0.002;
+    double kD = 0.0005;
+    double MaxRotateRate = 0.5;
+    frc2::PIDController *m_pidController;
     frc::Timer m_timer;
 
     double rotateToAngleRate;           // Current rotation rate
 };
 
-#define MAX_ROTATE_RATE 0.5

@@ -17,10 +17,10 @@
 /* controllers by displaying a form where you can enter new P, I,  */
 /* and D constants and test the mechanism.                         */
 
-const static double kP = 0.03f;
-const static double kI = 0.00f;
-const static double kD = 0.00f;
-const static double kF = 0.00f;
+// const static double kP = 0.03f;
+// const static double kI = 0.00f;
+// const static double kD = 0.00f;
+// const static double kF = 0.00f;
 
 /* This tuning parameter indicates how close to "on target" the    */
 /* PID Controller will attempt to get.                             */
@@ -74,6 +74,12 @@ void Robot::RobotInit() {
      * Multiple navX-model devices on a single robot are supported.
      ************************************************************************/
     ahrs = new AHRS(SPI::Port::kMXP);
+
+    frc::SmartDashboard::PutNumber("kP", kP);
+    frc::SmartDashboard::PutNumber("kI", kI);
+    frc::SmartDashboard::PutNumber("kD", kD);
+    frc::SmartDashboard::PutNumber("MaxRotateRate", MaxRotateRate);
+
   }
   catch (std::exception &ex)
   {
@@ -144,15 +150,22 @@ void Robot::AutonomousPeriodic() {
 
 void Robot::TeleopInit() {
   ahrs->ZeroYaw();
+  kP = frc::SmartDashboard::GetNumber("kP", kP);
+  kI = frc::SmartDashboard::GetNumber("kI", kI);
+  kD = frc::SmartDashboard::GetNumber("kD", kD);
+  MaxRotateRate = frc::SmartDashboard::GetNumber("MaxRotateRate", MaxRotateRate);
+  m_pidController = new frc2::PIDController (kP, kI, kD);
+  m_pidController->SetTolerance(0.3);
 }
 
-double TrimSpeed (double s) {
-  double result = s > MAX_ROTATE_RATE ? MAX_ROTATE_RATE : s;
-  result = s < -MAX_ROTATE_RATE ? -MAX_ROTATE_RATE : s;
+double Robot::TrimSpeed (double s) {
+  double result = s > MaxRotateRate ? MaxRotateRate : s;
+  result = result < -MaxRotateRate ? -MaxRotateRate : result;
   return result;
 }
 
 void Robot::TeleopPeriodic() {
+  
   bool reset_yaw_button_pressed = stick->GetRawButton(1);
   if ( reset_yaw_button_pressed ) {
       ahrs->ZeroYaw();
@@ -161,22 +174,22 @@ void Robot::TeleopPeriodic() {
   frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
 
   // do PID calculations here instead of in callback
-  rotateToAngleRate = m_pidController.Calculate(ahrs->GetAngle());
+  rotateToAngleRate = m_pidController->Calculate(ahrs->GetAngle());
   // trim the speed so it's not too fast
-  
+  rotateToAngleRate = TrimSpeed(rotateToAngleRate);
 
   bool rotateToAngle = false;
   if ( stick->GetPOV() == 0) {
-      m_pidController.SetSetpoint(0.0f);
+      m_pidController->SetSetpoint(0.0f);
       rotateToAngle = true;
   } else if ( stick->GetPOV() == 90) {
-      m_pidController.SetSetpoint(90.0f);
+      m_pidController->SetSetpoint(90.0f);
       rotateToAngle = true;
   } else if ( stick->GetPOV() == 180) {
-      m_pidController.SetSetpoint(179.9f);
+      m_pidController->SetSetpoint(179.9f);
       rotateToAngle = true;
   } else if ( stick->GetPOV() == 270) {
-      m_pidController.SetSetpoint(-90.0f);
+      m_pidController->SetSetpoint(-90.0f);
       rotateToAngle = true;
   }
   // double currentRotationRate;
@@ -193,13 +206,13 @@ void Robot::TeleopPeriodic() {
     /* depending upon whether "rotate to angle" is active.    */
     if (rotateToAngle) {
       // MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
+        frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
       m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
     } else {
       // not rotating; drive by stick
-      m_robotDrive.ArcadeDrive(-stick->GetY(), stick->GetX());
+      m_robotDrive.ArcadeDrive(TrimSpeed(-stick->GetY()), TrimSpeed(stick->GetX()));
+      m_pidController->Reset(); // clears out integral state, etc
     }
-    
-    
   } catch (std::exception& ex ) {
     std::string err_string = "Error communicating with Drive System:  ";
     err_string += ex.what();
