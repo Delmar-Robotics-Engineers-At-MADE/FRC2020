@@ -24,8 +24,8 @@
 #define LIMELIGHT_ANGLE_DEFAULT 65
 #define SPEED_ROTATE 0.25
 #define SPEED_PURSUE 0.25
-#define MIN_TARGET_AREA_PERCENT 0.2
-#define MAX_TARGET_AREA_PERCENT 0.4
+#define MIN_TARGET_AREA_PERCENT 0.1
+#define MAX_TARGET_AREA_PERCENT 1
 using namespace std;
 
 void Robot::RobotInit() {
@@ -40,6 +40,13 @@ void Robot::RobotInit() {
 
   m_pidController.SetTolerance(4);
   m_pidControllerRange.SetTolerance(4);
+
+  
+  // breaking mode and other config of motor controller
+  m_shooter.ConfigFactoryDefault();
+  m_shooter.SetNeutralMode(NeutralMode::Coast);
+  m_shooter.ConfigNeutralDeadband(0.25, 0); // maximum deadband is 25%
+  m_shooter.ConfigSelectedFeedbackSensor(FeedbackDevice::QuadEncoder, 0, kTimeoutMs);
 
   wpi::outs() << "hello from RobotInit\n";
   printf ("hello with printf\n");
@@ -107,8 +114,7 @@ void Robot::TeleopPeriodic() {
 
   bool ok_to_pursue_button_presssed = m_stick.GetRawButton(2);
   bool not_ok_to_pursue_button_presssed = m_stick.GetRawButton(3);
-  bool limelight_cv_mode_pressed = m_stick_copilot.GetRawButton(2);
-  bool limelight_driver_mode_pressed = m_stick_copilot.GetRawButton(3);
+  bool shoot_button_pressed = m_stick.GetRawButton(4);
 
   if (ok_to_pursue_button_presssed) {
     m_okToPursue = true;
@@ -118,16 +124,20 @@ void Robot::TeleopPeriodic() {
     frc::SmartDashboard::PutString("DB/String 1", "pursue disabled");
   }
 
-  if (limelight_cv_mode_pressed) {
-    m_limetable->PutNumber("camMode",0.0); // camera in normal CV mode
-    m_limetable->PutNumber("ledMode",0.0); // LED auto
-    // m_limetable->PutNumber("stream",0.0);  // secondary camera side-by-side
+  if (shoot_button_pressed) {
+    m_limetable->PutNumber("ledMode",3); // LED on
+    m_shooter.Set(ControlMode::Velocity, -1000 * 6.1); // 4048? units/100ms * 1min/600 * 1000 RPM... m_shooter.Set(-1); 
     frc::SmartDashboard::PutString("DB/String 0", "limelight cv mode");
-  } else if (limelight_driver_mode_pressed) {
-    m_limetable->PutNumber("camMode",1.0); // camera in driver mode
-    m_limetable->PutNumber("ledMode",1.0); // LED off
+    if (m_shooter.GetClosedLoopError() > SHOOTER_TOLERANCE) {
+      frc::SmartDashboard::PutString("Shooter State", "spinning up");
+    } else {
+      frc::SmartDashboard::PutString("Shooter State", "ready to shoot");
+    }
+  } else {
+    m_limetable->PutNumber("ledMode",1); // LED off
     // m_limetable->PutNumber("stream",1.0);  // secondary camera in PIP
     frc::SmartDashboard::PutString("DB/String 0", "limelight driver mode");
+    frc::SmartDashboard::PutString("Shooter State", "off");
   }
 
   double speed_left = 0.0;
@@ -135,6 +145,7 @@ void Robot::TeleopPeriodic() {
 
   double targetSeen = m_limetable->GetNumber("tv",0.0);
   double targetArea = m_limetable->GetNumber("ta",0.0);
+  frc::SmartDashboard::PutNumber("Target Area", targetArea);
 
   if (targetSeen != 0.0 && targetArea > MIN_TARGET_AREA_PERCENT) {  // tv is true if there is a target detected
     double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
@@ -204,8 +215,13 @@ void Robot::TeleopPeriodic() {
 
 void Robot::TestPeriodic() {}
 void Robot::TeleopInit() {
-  m_limeServo.SetAngle(LIMELIGHT_ANGLE_DEFAULT);
-}
+  m_limetable->PutNumber("camMode",0.0); // camera in normal CV mode
+  m_limetable->PutNumber("stream",0.0);  // secondary camera side-by-side
+  /* set closed loop gains in slot0 */
+  m_shooter.Config_kF(kPIDLoopIdx, 0.1097, kTimeoutMs);
+  m_shooter.Config_kP(kPIDLoopIdx, 0.22, kTimeoutMs);
+  m_shooter.Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
+  m_shooter.Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);}
 
 #ifndef RUNNING_FRC_TESTS
 int main() { return frc::StartRobot<Robot>(); }
