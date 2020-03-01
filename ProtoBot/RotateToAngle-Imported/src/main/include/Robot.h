@@ -65,3 +65,5 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
 
     double rotateToAngleRate;           // Current rotation rate
 };
+
+#define MAX_ROTATE_RATE 0.5

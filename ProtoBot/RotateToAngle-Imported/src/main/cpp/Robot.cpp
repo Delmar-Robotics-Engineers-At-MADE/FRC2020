@@ -146,6 +146,12 @@ void Robot::TeleopInit() {
   ahrs->ZeroYaw();
 }
 
+double TrimSpeed (double s) {
+  double result = s > MAX_ROTATE_RATE ? MAX_ROTATE_RATE : s;
+  result = s < -MAX_ROTATE_RATE ? -MAX_ROTATE_RATE : s;
+  return result;
+}
+
 void Robot::TeleopPeriodic() {
   bool reset_yaw_button_pressed = stick->GetRawButton(1);
   if ( reset_yaw_button_pressed ) {
@@ -156,6 +162,7 @@ void Robot::TeleopPeriodic() {
 
   // do PID calculations here instead of in callback
   rotateToAngleRate = m_pidController.Calculate(ahrs->GetAngle());
+  // trim the speed so it's not too fast
   
 
   bool rotateToAngle = false;
