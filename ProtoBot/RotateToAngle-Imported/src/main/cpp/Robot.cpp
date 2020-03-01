@@ -155,7 +155,7 @@ void Robot::TeleopInit() {
   kD = frc::SmartDashboard::GetNumber("kD", kD);
   MaxRotateRate = frc::SmartDashboard::GetNumber("MaxRotateRate", MaxRotateRate);
   m_pidController = new frc2::PIDController (kP, kI, kD);
-  m_pidController->SetTolerance(0.3);
+  m_pidController->SetTolerance(8, 8);
 }
 
 double Robot::TrimSpeed (double s) {
@@ -173,12 +173,8 @@ void Robot::TeleopPeriodic() {
 
   frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
 
-  // do PID calculations here instead of in callback
-  rotateToAngleRate = m_pidController->Calculate(ahrs->GetAngle());
-  // trim the speed so it's not too fast
-  rotateToAngleRate = TrimSpeed(rotateToAngleRate);
-
   bool rotateToAngle = false;
+  bool stepOver = false;
   if ( stick->GetPOV() == 0) {
       m_pidController->SetSetpoint(0.0f);
       rotateToAngle = true;
@@ -191,14 +187,20 @@ void Robot::TeleopPeriodic() {
   } else if ( stick->GetPOV() == 270) {
       m_pidController->SetSetpoint(-90.0f);
       rotateToAngle = true;
+  }  else if ( stick->GetRawButton(1)) {
+      m_pidController->SetSetpoint(-90.0f);
+      stepOver = true;
+  }  else if ( stick->GetRawButton(3)) {
+      m_pidController->SetSetpoint(90.0f);
+      stepOver = true;
   }
-  // double currentRotationRate;
-  // if ( rotateToAngle ) {
-  //     currentRotationRate = rotateToAngleRate;
-  // } else {
-  //     m_pidController.Reset();
-  //     currentRotationRate = stick->GetTwist();
-  // }
+
+  // do PID calculations here instead of in callback
+  rotateToAngleRate = m_pidController->Calculate(ahrs->GetAngle());
+  // trim the speed so it's not too fast
+  rotateToAngleRate = TrimSpeed(rotateToAngleRate);
+
+
   try {
     /* Use the joystick X axis for lateral movement,          */
     /* Y axis for forward movement, and the current           */
@@ -206,8 +208,15 @@ void Robot::TeleopPeriodic() {
     /* depending upon whether "rotate to angle" is active.    */
     if (rotateToAngle) {
       // MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
-        frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
+      frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
       m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
+    } else if (stepOver) {
+      frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
+      if (m_pidController->AtSetpoint()) {
+        m_robotDrive.TankDrive(MaxRotateRate, MaxRotateRate, false); // drive forward
+      } else {
+        m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
+      }
     } else {
       // not rotating; drive by stick
       m_robotDrive.ArcadeDrive(TrimSpeed(-stick->GetY()), TrimSpeed(stick->GetX()));

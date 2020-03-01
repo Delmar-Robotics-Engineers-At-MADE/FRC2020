@@ -59,9 +59,9 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
     Joystick *stick;          // only joystick
     AHRS *ahrs;
 
-    double kP = 0.0035;
-    double kI = 0.002;
-    double kD = 0.0005;
+    double kP = 0.006;
+    double kI = 0.0015;
+    double kD = 0.001;
     double MaxRotateRate = 0.5;
     frc2::PIDController *m_pidController;
     frc::Timer m_timer;
