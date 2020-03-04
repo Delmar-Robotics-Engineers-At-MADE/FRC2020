@@ -12,6 +12,8 @@
 #include "rev/ColorSensorV3.h"
 #include "rev/ColorMatch.h"
 
+#define MIN_CONFIDENCE 0.85 // for color match
+
 /**
  * This is a simple example to show how the REV Color Sensor V3 can be used to
  * detect various colors.
@@ -54,6 +56,17 @@ class Robot : public frc::TimedRobot {
   static constexpr frc::Color kGreenTarget = frc::Color(0.206, 0.545, 0.248);
   static constexpr frc::Color kRedTarget = frc::Color(0.424, 0.386, 0.190);
   static constexpr frc::Color kYellowTarget = frc::Color(0.330, 0.525, 0.145);
+  static constexpr frc::Color kNoColor = frc::Color(0,0,0);
+
+  // state machine for counting rotations
+  enum States {
+	kUnknownState = 0,
+  kOffStartingColor,
+  kOnStartingColor
+  };
+  int wheel_state = kUnknownState;
+  frc::Color starting_color = kNoColor;
+  int half_rotation_count = 0;
 
  public:
   void RobotInit() {
@@ -61,6 +74,11 @@ class Robot : public frc::TimedRobot {
     m_colorMatcher.AddColorMatch(kGreenTarget);
     m_colorMatcher.AddColorMatch(kRedTarget);
     m_colorMatcher.AddColorMatch(kYellowTarget);
+  }
+  void TeleopInit() {
+    wheel_state = kUnknownState;
+    starting_color = kNoColor;
+    half_rotation_count = 0;
   }
   void RobotPeriodic() {
     /**
@@ -103,6 +121,29 @@ class Robot : public frc::TimedRobot {
     frc::SmartDashboard::PutNumber("Blue", detectedColor.blue);
     frc::SmartDashboard::PutNumber("Confidence", confidence);
     frc::SmartDashboard::PutString("Detected Color", colorString);
+  
+    switch (wheel_state) {
+      case kUnknownState: 
+        if (confidence > MIN_CONFIDENCE) {
+          wheel_state = kOnStartingColor;
+          starting_color = matchedColor;
+        }
+        break;
+      case kOnStartingColor:
+        if (confidence > MIN_CONFIDENCE && !(matchedColor == starting_color)) {
+          wheel_state = kOffStartingColor;
+        }
+        break;
+      case kOffStartingColor:
+        if (confidence > MIN_CONFIDENCE && matchedColor == starting_color) {
+          wheel_state = kOnStartingColor;
+          half_rotation_count++;
+        }
+        break;
+    }
+    
+    frc::SmartDashboard::PutNumber("Wheel state", wheel_state);
+    frc::SmartDashboard::PutNumber("Turn count", half_rotation_count/2);
 
   }
 };
