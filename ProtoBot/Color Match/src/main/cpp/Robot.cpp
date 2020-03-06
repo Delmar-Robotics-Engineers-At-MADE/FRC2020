@@ -42,18 +42,20 @@ class Robot : public frc::TimedRobot {
    * Note: Any example colors should be calibrated as the user needs, these
    * are here as a basic example.
    */
-/* stock color set
+/* stock color set */
   static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
   static constexpr frc::Color kGreenTarget = frc::Color(0.197, 0.561, 0.240);
   static constexpr frc::Color kRedTarget = frc::Color(0.561, 0.232, 0.114);
   static constexpr frc::Color kYellowTarget = frc::Color(0.361, 0.524, 0.113);
-*/
+
 
   // our mockup control panel
+  /*
   static constexpr frc::Color kBlueTarget = frc::Color(0.175, 0.436, 0.388);
   static constexpr frc::Color kGreenTarget = frc::Color(0.206, 0.545, 0.248);
   static constexpr frc::Color kRedTarget = frc::Color(0.424, 0.386, 0.190);
   static constexpr frc::Color kYellowTarget = frc::Color(0.330, 0.525, 0.145);
+  */
 
  public:
   void RobotInit() {

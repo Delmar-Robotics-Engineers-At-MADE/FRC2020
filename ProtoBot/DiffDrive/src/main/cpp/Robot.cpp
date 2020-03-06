@@ -12,6 +12,8 @@
 #include <frc/SpeedControllerGroup.h>
 #include "ctre/Phoenix.h"
 #include <frc/controller/PIDController.h>
+#include <frc/smartdashboard/smartdashboard.h>
+#include <frc/DigitalInput.h>
 
 /**
  * This is a demo program showing the use of the DifferentialDrive class.
@@ -28,6 +30,7 @@ class Robot : public frc::TimedRobot {
   frc::DifferentialDrive m_robotDrive{m_left, m_right};
   //frc::DifferentialDrive m_robotDrive{m_right, m_left};
   frc::Joystick m_stick{0};
+  frc::DigitalInput input{0}; // photo eye test
 
   static constexpr double kP = -5.0;
   static constexpr double kI = -0.02;
@@ -46,6 +49,10 @@ class Robot : public frc::TimedRobot {
       case 270: m_shooter.Set(-1); break;
       default: m_shooter.Set(0);
     }
+
+    // display value of photo eye in D0
+    bool eye_value = input.Get();
+    frc::SmartDashboard::PutNumber("Eye", eye_value);
   }
 
 };
