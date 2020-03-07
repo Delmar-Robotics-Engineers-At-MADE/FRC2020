@@ -40,11 +40,12 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
     double ConvertRadsToDegrees (double rads);
 
     // Channels for the wheels
-    const static int frontLeftChannel = 2;
-    const static int rearLeftChannel = 3;
-    const static int frontRightChannel = 1;
-    const static int rearRightChannel = 0;
+    // const static int frontLeftChannel = 2;
+    // const static int rearLeftChannel = 3;
+    // const static int frontRightChannel = 1;
+    // const static int rearRightChannel = 0;
 
+    // drive motors
     WPI_TalonSRX m_leftfront{1};
     WPI_TalonSRX m_leftrear{2};
     WPI_TalonSRX m_rightfront{13}; 
@@ -53,12 +54,15 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
     frc::SpeedControllerGroup m_right{m_rightfront, m_rightrear};
     frc::DifferentialDrive m_robotDrive{m_left, m_right};
 
+    // conveyers
+    WPI_TalonSRX m_vert_conveyer{10}; 
+    WPI_TalonSRX m_hor_conveyer{11};
+
+    // shooter
     TalonFX * m_shooter_star = new TalonFX(15); // 15 is starboard, 0 is port
     TalonFX * m_shooter_port = new TalonFX(0); // 15 is starboard, 0 is port
 
-    const static int joystickChannel = 0;
-
-    Joystick *m_stick;          // only joystick
+    Joystick *m_stick, *m_stick_copilot;          // only joystick
     AHRS *ahrs;
 
     double kP = 0.0;
@@ -70,5 +74,10 @@ class Robot : public TimedRobot /*, public PIDOutput */ {  // MJS: modified for 
 
     double rotateToAngleRate;           // Current rotation rate
     double speed_factor = 0.5;
+
+    // joystick channels
+    const static int k_joystick_pilot = 0;
+    const static int k_joystick_copilot = 1;
+
 };
 
