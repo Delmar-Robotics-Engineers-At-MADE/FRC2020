@@ -31,8 +31,6 @@ using namespace frc;
 	const static double kSlowSpeedFactor = 0.5;
 	const static double kFastSpeedFactor = 1.0;
 	
-
-
 	double kP = 0.0;
     double kI = 0.0;
     double kD = 0.0;
@@ -65,15 +63,18 @@ class Robot: public TimedRobot {
 	// joysticks
 	Joystick *m_stick, *m_stick_copilot;
 
-	// gyro
+	// sensors
 	AHRS *ahrs;
+	frc::DigitalInput eye_collector{0}; // photo eye at collector
+	frc::DigitalInput eye_turret{1}; // photo eye at turret
 
+	// pid and timer
     frc2::PIDController *m_pidController;
     frc::Timer m_timer;
 
+	// misc members
     double rotateToAngleRate;           // Current rotation rate
     double speed_factor = 0.5;
-
 
 	double TrimSpeed (double s, double max) {
 	double result = s > max ? max : s;
@@ -305,13 +306,17 @@ public:
 			 */
 			// MJS: Falcon sensor reports 2048 units/rev
 
-			double targetVelocity_UnitsPer100ms = 3000.0 * 2048 / 600;
+			double targetVelocity_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
         	m_shooter_star->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms); 
 
         } else {
 			/* Percent voltage mode */
 			m_shooter_star->Set(ControlMode::PercentOutput, shooter_Y);
 		}
+
+		// display value of photo eye in D0
+		bool eye_value = eye_collector.Get();
+		frc::SmartDashboard::PutNumber("Eye", eye_value);
 	}
 
 	void AutonomousInit() {
