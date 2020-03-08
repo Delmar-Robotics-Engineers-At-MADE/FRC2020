@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <string>
+#include <Thread>
 
 #include <frc/TimedRobot.h>
 #include <frc/DigitalInput.h>
@@ -33,6 +34,9 @@ using namespace frc;
 	const static double kSlowSpeedFactor = 0.5;
 	const static double kFastSpeedFactor = 1.0;
 	const static double kMinTargetAreaPercent = 0.1;
+	const static double kConveyerSpeed = 0.5;
+	const static double kIdleShooterSpeed = 8000;
+
 	
 	double kP = 0.0;
     double kI = 0.0;
@@ -46,6 +50,7 @@ class Robot: public TimedRobot {
 	// shooter 
 	TalonFX * m_shooter_star = new TalonFX(15); // 15 is starboard, 0 is port
 	TalonFX * m_shooter_port = new TalonFX(0); // 15 is starboard, 0 is port
+	double shooter_speed_in_units = 0.0;
 	//Joystick * _joy = new Joystick(0);
 	// std::string _sb;
 	// int _loops = 0;
@@ -147,9 +152,9 @@ public:
 		/***************** limelight *************************/
 
 		m_limetable = nt::NetworkTableInstance::GetDefault().GetTable("limelight");
-		m_limetable->PutNumber("camMode",0.0); // camera in normal CV mode
-		m_limetable->PutNumber("ledMode",1.0); // LED off
-		m_limetable->PutNumber("stream",0.0);  // secondary camera side-by-side
+		//m_limetable->PutNumber("camMode",0.0); // camera in normal CV mode
+		//m_limetable->PutNumber("ledMode",1.0); // LED off
+		//m_limetable->PutNumber("stream",0.0);  // secondary camera side-by-side
 
 		/***************** joysticks *************************/
 
@@ -209,8 +214,22 @@ public:
 		kD = frc::SmartDashboard::GetNumber("kD", kD);
 		MaxRotateRate = frc::SmartDashboard::GetNumber("MaxRotateRate", MaxRotateRate);
 		*/
+		// used to tune shooter trajectory
+		frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
 		m_pidController = new frc2::PIDController (kP, kI, kD);
 		m_pidController->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
+
+		// ramp up shooter slowly
+		m_timer.Reset();
+		m_timer.Start();
+		while (m_timer.Get() < 3) {
+			if (m_timer.Get() > 1) {
+				m_shooter_star->Set(ControlMode::Velocity, -2*kIdleShooterSpeed/4);
+			} else if (m_timer.Get() > 2) {
+				m_shooter_star->Set(ControlMode::Velocity, -3*kIdleShooterSpeed/4);
+			}
+		} // while timer
+		m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 	}
 
 	void TeleopPeriodic() {
@@ -251,13 +270,17 @@ public:
 		double targetSeen = m_limetable->GetNumber("tv",0.0);
 		double targetArea = m_limetable->GetNumber("ta",0.0);
 
-		if (targetSeen != 0.0 && targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
-			double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
+		if (targetSeen != 0.0) {
+		  frc::SmartDashboard::PutNumber("Targ Area", targetArea);
+		  if (targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
+			//double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
 			double targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
-			double targetSkew = m_limetable->GetNumber("ts",0.0);
+			//double targetSkew = m_limetable->GetNumber("ts",0.0);
 			double targetWidth = m_limetable->GetNumber("tlong",0.0);
-			frc::SmartDashboard::PutNumber("Targ Area", targetArea);
+
 			frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
+			frc::SmartDashboard::PutNumber("Targ Vert", targetOffsetAngle_Vertical);
+		  }
 		}
 
 
@@ -279,7 +302,7 @@ public:
 
 		// power conveyer, which does not have encoders
 		//frc::SmartDashboard::PutNumber("conveyer power", conveyer_Y);
-		m_vert_conveyer.Set(conveyer_Y);
+		
 
 		if (abs(field_rel_X) > kGamepadDeadZone || abs(m_stick->GetRawAxis(3)) > kGamepadDeadZone) {
 			rotateToAngle = true;
@@ -345,13 +368,21 @@ public:
         // } else {
 		// 	targetVel_UnitsPer100ms = -1 * 1000.0 * 2048 / 600;
 		// }
-		double shooter_speed_in_units = 0.0;
+
+		double conveyer_speed = kConveyerSpeed * conveyer_Y;
 		if (auto_shoot_button) {
-			shooter_speed_in_units = 15000;
+			m_limetable->PutNumber("ledMode",3.0); // LED on
+			shooter_speed_in_units = frc::SmartDashboard::GetNumber("shoot speed", 0.0);
+			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
+			frc::SmartDashboard::PutNumber("shooter err", m_shooter_star->GetClosedLoopError());
+			//if (m_shooter_star->GetClosedLoopError < kShooterSpeedTolerance)
 		} else {
-			shooter_speed_in_units = 10000;
+			m_limetable->PutNumber("ledMode",1.0); // LED off
+			shooter_speed_in_units = kIdleShooterSpeed;
+			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
 		}
-		m_shooter_star->Set(ControlMode::Velocity, shooter_speed_in_units);
+		m_vert_conveyer.Set(conveyer_speed);
+		
 
 		// test digital sensors
 		bool eye_value = eye_collector.Get();
