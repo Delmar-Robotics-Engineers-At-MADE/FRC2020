@@ -36,6 +36,7 @@ using namespace frc;
 	const static double kMinTargetAreaPercent = 0.1;
 	const static double kConveyerSpeed = 0.5;
 	const static double kIdleShooterSpeed = 8000;
+	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
 
 	
 	double kP = 0.0;
@@ -220,15 +221,15 @@ public:
 		m_pidController->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
 
 		// ramp up shooter slowly
-		m_timer.Reset();
-		m_timer.Start();
-		while (m_timer.Get() < 3) {
-			if (m_timer.Get() > 1) {
-				m_shooter_star->Set(ControlMode::Velocity, -2*kIdleShooterSpeed/4);
-			} else if (m_timer.Get() > 2) {
-				m_shooter_star->Set(ControlMode::Velocity, -3*kIdleShooterSpeed/4);
-			}
-		} // while timer
+		// m_timer.Reset();
+		// m_timer.Start();
+		// while (m_timer.Get() < 3) {
+		// 	if (m_timer.Get() > 1) {
+		// 		m_shooter_star->Set(ControlMode::Velocity, -2*kIdleShooterSpeed/4);
+		// 	} else if (m_timer.Get() > 2) {
+		// 		m_shooter_star->Set(ControlMode::Velocity, -3*kIdleShooterSpeed/4);
+		// 	}
+		// } // while timer
 		m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 	}
 
@@ -270,11 +271,12 @@ public:
 		double targetSeen = m_limetable->GetNumber("tv",0.0);
 		double targetArea = m_limetable->GetNumber("ta",0.0);
 
+		double targetOffsetAngle_Vertical = 0.0;
 		if (targetSeen != 0.0) {
 		  frc::SmartDashboard::PutNumber("Targ Area", targetArea);
 		  if (targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
 			//double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
-			double targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
+			targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
 			//double targetSkew = m_limetable->GetNumber("ts",0.0);
 			double targetWidth = m_limetable->GetNumber("tlong",0.0);
 
@@ -369,19 +371,43 @@ public:
 		// 	targetVel_UnitsPer100ms = -1 * 1000.0 * 2048 / 600;
 		// }
 
-		double conveyer_speed = kConveyerSpeed * conveyer_Y;
+		double conveyer_speed = 0.0; 
 		if (auto_shoot_button) {
 			m_limetable->PutNumber("ledMode",3.0); // LED on
-			shooter_speed_in_units = frc::SmartDashboard::GetNumber("shoot speed", 0.0);
-			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
-			frc::SmartDashboard::PutNumber("shooter err", m_shooter_star->GetClosedLoopError());
-			//if (m_shooter_star->GetClosedLoopError < kShooterSpeedTolerance)
 		} else {
 			m_limetable->PutNumber("ledMode",1.0); // LED off
+		}
+		frc::SmartDashboard::PutNumber("targetSeen", targetSeen);
+		if (targetSeen != 0.0 && auto_shoot_button) {
+			frc::SmartDashboard::PutNumber("Seen", true);
+			/* for tuning shooter
+			shooter_speed_in_units = frc::SmartDashboard::GetNumber("shoot speed", 0.0);
+			*/
+		
+			if (targetOffsetAngle_Vertical < -18) {
+				shooter_speed_in_units = 23000;
+			} else {
+				shooter_speed_in_units = 12696.1 - 317.502 * targetOffsetAngle_Vertical;
+			}
+			frc::SmartDashboard::PutNumber("shoot speed 1", shooter_speed_in_units);
+
+			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
+			double shooter_speed_error = m_shooter_star->GetClosedLoopError();
+			frc::SmartDashboard::PutNumber("shooter err", shooter_speed_error);
+			if (shooter_speed_error < kMaxShooterSpeedError) {
+				// auto feed balls into shooter
+				conveyer_speed = -kConveyerSpeed;
+			} 
+			//if (m_shooter_star->GetClosedLoopError < kShooterSpeedTolerance)
+		} else {
+			frc::SmartDashboard::PutNumber("Seen", false);
 			shooter_speed_in_units = kIdleShooterSpeed;
 			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
+			kConveyerSpeed * conveyer_Y;
 		}
+		
 		m_vert_conveyer.Set(conveyer_speed);
+		frc::SmartDashboard::PutNumber("shoot speed 2", shooter_speed_in_units);
 		
 
 		// test digital sensors

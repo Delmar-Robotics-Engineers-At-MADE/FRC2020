@@ -16,3 +16,6 @@ Renegade/Tests/VelocityClosedLoop/build/
 Renegade/TeleopAndAuto/.gradle/6.0.1/
 Renegade/TeleopAndAuto/.gradle/buildOutputCleanup/
 Renegade/TeleopAndAuto/build/
+ProtoBot/PositionClosedLoop/.gradle/6.0.1/
+ProtoBot/PositionClosedLoop/.gradle/buildOutputCleanup/
+ProtoBot/PositionClosedLoop/build/
