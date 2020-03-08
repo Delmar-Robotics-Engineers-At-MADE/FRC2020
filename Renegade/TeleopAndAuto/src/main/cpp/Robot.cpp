@@ -32,7 +32,7 @@ using namespace frc;
 	const static double kMaxRotateRate = 0.5;
 	const static double kGamepadDeadZone = 0.15;
 	const static double kSlowSpeedFactor = 0.5;
-	const static double kFastSpeedFactor = 1.0;
+	const static double kFastSpeedFactor = 8.0;
 	const static double kMinTargetAreaPercent = 0.1;
 	const static double kConveyerSpeed = 0.5;
 	const static double kIdleShooterSpeed = 8000;
@@ -149,18 +149,19 @@ public:
 
 		/* choose the sensor and sensor direction */
 		m_turret->ConfigSelectedFeedbackSensor(FeedbackDevice::QuadEncoder, kPIDLoopIdx,kTimeoutMs);
+		m_shooter_star->SetInverted(true);  // want positive to be clockwise
 		m_turret->SetSensorPhase(false);
 
 		/* set the peak and nominal outputs, 12V means full */
 		m_turret->ConfigNominalOutputForward(0, kTimeoutMs);
 		m_turret->ConfigNominalOutputReverse(0, kTimeoutMs);
-		m_turret->ConfigPeakOutputForward(0.1, kTimeoutMs);
-		m_turret->ConfigPeakOutputReverse(-0.1, kTimeoutMs);
+		m_turret->ConfigPeakOutputForward(0.5, kTimeoutMs);
+		m_turret->ConfigPeakOutputReverse(-0.5, kTimeoutMs);
 
 		/* set closed loop gains in slot0 */
 		m_turret->Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
-		m_turret->Config_kP(kPIDLoopIdx, 0.1, kTimeoutMs);
-		m_turret->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_turret->Config_kP(kPIDLoopIdx, 0.2, kTimeoutMs);
+		m_turret->Config_kI(kPIDLoopIdx, 0.1, kTimeoutMs);
 		m_turret->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
 
 		/************** other motor setup *****************/
@@ -245,8 +246,29 @@ public:
 		m_pidController->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
 
 		// move turret to starting position using Hall sensor
-		double targetPositionRotations = 2.0 * 4096; /* 10 Rotations forward */
-		m_turret->Set(ControlMode::Position, targetPositionRotations); 
+
+		int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
+		m_timer.Reset();
+		m_timer.Start();
+		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
+		//m_turret->Set(ControlMode::Position, targetPositionRotations); 
+
+		while (m_timer.Get() < 3) {
+			if (!hall_effect.Get()) { // false means turret is on sensor
+				m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
+			}
+		}
+
+		bool turret_on_hall = !hall_effect.Get();
+		if (!turret_on_hall) {
+			// we didn't land on Hall sensor, go back the other way looking for it
+			//targetPositionRotations = -1500; // positive moves turret clockwise
+			//m_turret->Set(ControlMode::Position, targetPositionRotations);
+		}
+		frc::SmartDashboard::PutNumber("On Hall Effect", turret_on_hall);
+		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
+
 
 		// ramp up shooter slowly
 		// m_timer.Reset();
@@ -262,6 +284,11 @@ public:
 	}
 
 	void TeleopPeriodic() {
+
+		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
+		//m_turret->Set(ControlMode::Position, targetPositionRotations); 
+
+		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
 
 		/**************** buttons ******************/
 
@@ -316,6 +343,9 @@ public:
 
 		/****************** move stuff *******************/
 
+		//m_turret->Set(ControlMode::PercentOutput, shooter_Y);  // temporary test
+
+		
 		// reset gyro angle
 		if ( reset_yaw_button_pressed ) {
 			ahrs->ZeroYaw();
@@ -349,10 +379,11 @@ public:
 		rotateToAngleRate = TrimSpeed(rotateToAngleRate, kMaxRotateRate);
 
 		// high and low speed scaling
-		bool slow_gear_button_pressed = m_stick->GetRawButton(5);
+		// bool slow_gear_button_pressed = m_stick->GetRawButton(5);
 		bool high_gear_button_presssed = m_stick->GetRawButton(7);
-		if (slow_gear_button_pressed) {speed_factor = kSlowSpeedFactor;}
-		else if (high_gear_button_presssed) {speed_factor = kFastSpeedFactor;}
+		// if (slow_gear_button_pressed) {speed_factor = kSlowSpeedFactor;}
+		if (high_gear_button_presssed) {speed_factor = kFastSpeedFactor;}
+		else {speed_factor = kSlowSpeedFactor;}
 		//frc::SmartDashboard::PutNumber ("Drive Speed Factor", speed_factor);
 
 		try {
@@ -431,18 +462,19 @@ public:
 			frc::SmartDashboard::PutNumber("Seen", false);
 			shooter_speed_in_units = kIdleShooterSpeed;
 			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
-			kConveyerSpeed * conveyer_Y;
+			conveyer_speed = conveyer_Y;
 		}
 		
 		m_vert_conveyer.Set(conveyer_speed);
 		frc::SmartDashboard::PutNumber("shoot speed 2", shooter_speed_in_units);
+		frc::SmartDashboard::PutNumber("conveyer speed", conveyer_speed);
 		
 
 		// test digital sensors
 		bool eye_value = eye_collector.Get();
-		bool hall_value = hall_effect.Get();
+
 		//frc::SmartDashboard::PutNumber("Eye", eye_value);
-		frc::SmartDashboard::PutNumber("Hall Effect", hall_value);
+		
 	}
 
 	void AutonomousInit() {
