@@ -69,6 +69,9 @@ class Robot: public TimedRobot {
     WPI_TalonSRX m_vert_conveyer{10}; 
     WPI_TalonSRX m_hor_conveyer{11};
 
+	// turret
+	TalonSRX * m_turret = new TalonSRX(5); 
+
 	// joysticks
 	Joystick *m_stick, *m_stick_copilot;
 
@@ -138,7 +141,28 @@ public:
 		m_shooter_star->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
 		m_shooter_star->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
 
-	
+		/************** turret setup **********************/
+
+		m_turret->ConfigFactoryDefault();
+		int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
+
+		/* choose the sensor and sensor direction */
+		m_turret->ConfigSelectedFeedbackSensor(FeedbackDevice::QuadEncoder, kPIDLoopIdx,kTimeoutMs);
+		m_turret->SetSensorPhase(false);
+
+		/* set the peak and nominal outputs, 12V means full */
+		m_turret->ConfigNominalOutputForward(0, kTimeoutMs);
+		m_turret->ConfigNominalOutputReverse(0, kTimeoutMs);
+		m_turret->ConfigPeakOutputForward(0.1, kTimeoutMs);
+		m_turret->ConfigPeakOutputReverse(-0.1, kTimeoutMs);
+
+		/* set closed loop gains in slot0 */
+		m_turret->Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_turret->Config_kP(kPIDLoopIdx, 0.1, kTimeoutMs);
+		m_turret->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_turret->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
+
 		/************** other motor setup *****************/
 
 		// Conveyers
@@ -219,6 +243,10 @@ public:
 		frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
 		m_pidController = new frc2::PIDController (kP, kI, kD);
 		m_pidController->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
+
+		// move turret to starting position using Hall sensor
+		double targetPositionRotations = 2.0 * 4096; /* 10 Rotations forward */
+		m_turret->Set(ControlMode::Position, targetPositionRotations); 
 
 		// ramp up shooter slowly
 		// m_timer.Reset();
