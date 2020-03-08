@@ -15,6 +15,8 @@
 
 #include "ctre/Phoenix.h"
 #include "AHRS.h"
+#include <networktables/NetworkTable.h>
+#include <networktables/NetworkTableInstance.h>
 
 #include "Constants.h"
 
@@ -30,6 +32,7 @@ using namespace frc;
 	const static double kGamepadDeadZone = 0.15;
 	const static double kSlowSpeedFactor = 0.5;
 	const static double kFastSpeedFactor = 1.0;
+	const static double kMinTargetAreaPercent = 0.1;
 	
 	double kP = 0.0;
     double kI = 0.0;
@@ -67,10 +70,14 @@ class Robot: public TimedRobot {
 	AHRS *ahrs;
 	frc::DigitalInput eye_collector{0}; // photo eye at collector
 	frc::DigitalInput eye_turret{1}; // photo eye at turret
+	frc::DigitalInput hall_effect{2}; // hall effect sensor on turret
 
 	// pid and timer
     frc2::PIDController *m_pidController;
     frc::Timer m_timer;
+
+	// limelight
+	std::shared_ptr<NetworkTable> m_limetable;  // for LimeLight
 
 	// misc members
     double rotateToAngleRate;           // Current rotation rate
@@ -137,6 +144,13 @@ public:
 		m_vert_conveyer.ConfigPeakOutputForward(0.5, kTimeoutMs);
 		m_vert_conveyer.ConfigPeakOutputReverse(-0.5, kTimeoutMs);
 
+		/***************** limelight *************************/
+
+		m_limetable = nt::NetworkTableInstance::GetDefault().GetTable("limelight");
+		m_limetable->PutNumber("camMode",0.0); // camera in normal CV mode
+		m_limetable->PutNumber("ledMode",1.0); // LED off
+		m_limetable->PutNumber("stream",0.0);  // secondary camera side-by-side
+
 		/***************** joysticks *************************/
 
 		m_stick = new Joystick(k_joystick_pilot);
@@ -175,6 +189,9 @@ public:
 		frc::SmartDashboard::PutNumber("MaxRotateRate", MaxRotateRate);
 		*/
 
+		// for testing shooter ranges
+		frc::SmartDashboard::PutNumber("kP", kP);
+
 		/********************** stuff ************************/
 
 		rotateToAngleRate = 0.0f;
@@ -201,7 +218,7 @@ public:
 		/**************** buttons ******************/
 
 		bool reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
-		bool auto_shoot_button = m_stick_copilot->GetRawButton(2);
+		bool auto_shoot_button =  m_stick_copilot->GetRawButton(2);
 		bool rotateToAngle = false;
 		if ( m_stick->GetPOV() == 0) {
 			m_pidController->SetSetpoint(0.0f);
@@ -226,8 +243,23 @@ public:
 		double shooter_Y = m_stick_copilot->GetRawAxis(1);
 		double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y);
 
-		frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
-		frc::SmartDashboard::PutNumber("Shooter Magnitude", shooter_R);
+		//frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
+		//frc::SmartDashboard::PutNumber("Shooter Magnitude", shooter_R);
+
+		/******************* limelight ****************************/
+
+		double targetSeen = m_limetable->GetNumber("tv",0.0);
+		double targetArea = m_limetable->GetNumber("ta",0.0);
+
+		if (targetSeen != 0.0 && targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
+			double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
+			double targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
+			double targetSkew = m_limetable->GetNumber("ts",0.0);
+			double targetWidth = m_limetable->GetNumber("tlong",0.0);
+			frc::SmartDashboard::PutNumber("Targ Area", targetArea);
+			frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
+		}
+
 
 		/****************** move stuff *******************/
 
@@ -237,16 +269,16 @@ public:
 		}
 
 		// shooter
-		if (shooter_R > 0.1) {
-		double targetVelocity_UnitsPer100ms = -1 * shooter_R * 1500.0 * 2048 / 600;
-			m_shooter_star->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms);
-		frc::SmartDashboard::PutNumber("shooter target", targetVelocity_UnitsPer100ms);
-		} else {
-			m_shooter_star->Set(ControlMode::Velocity, 0.0);
-		}
+		// if (shooter_R > 0.1) {
+		// double targetVelocity_UnitsPer100ms = -1 * shooter_R * 1500.0 * 2048 / 600;
+		// 	m_shooter_star->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms);
+		// //frc::SmartDashboard::PutNumber("shooter target", targetVelocity_UnitsPer100ms);
+		// } else {
+		// 	m_shooter_star->Set(ControlMode::Velocity, 0.0);
+		// }
 
 		// power conveyer, which does not have encoders
-		frc::SmartDashboard::PutNumber("conveyer power", conveyer_Y);
+		//frc::SmartDashboard::PutNumber("conveyer power", conveyer_Y);
 		m_vert_conveyer.Set(conveyer_Y);
 
 		if (abs(field_rel_X) > kGamepadDeadZone || abs(m_stick->GetRawAxis(3)) > kGamepadDeadZone) {
@@ -255,9 +287,9 @@ public:
 			angle = copysign(angle, field_rel_X); // make angle negative if X is negative
 			m_pidController->SetSetpoint(angle);
 		}
-		frc::SmartDashboard::PutNumber ("Angle set point", m_pidController->GetSetpoint());
-		frc::SmartDashboard::PutNumber ("X", field_rel_X);
-		frc::SmartDashboard::PutNumber ("Y", field_rel_Y);
+		//frc::SmartDashboard::PutNumber ("Angle set point", m_pidController->GetSetpoint());
+		//frc::SmartDashboard::PutNumber ("X", field_rel_X);
+		//frc::SmartDashboard::PutNumber ("Y", field_rel_Y);
 
 		rotateToAngleRate = m_pidController->Calculate(ahrs->GetAngle());
 		// trim the speed so it's not too fast
@@ -268,13 +300,13 @@ public:
 		bool high_gear_button_presssed = m_stick->GetRawButton(7);
 		if (slow_gear_button_pressed) {speed_factor = kSlowSpeedFactor;}
 		else if (high_gear_button_presssed) {speed_factor = kFastSpeedFactor;}
-		frc::SmartDashboard::PutNumber ("Drive Speed Factor", speed_factor);
+		//frc::SmartDashboard::PutNumber ("Drive Speed Factor", speed_factor);
 
 		try {
 
 			if (rotateToAngle) {
 			// MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
-			frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
+			//frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
 			m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
 			// } else if (stepOver) {
 			//   frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
@@ -297,26 +329,35 @@ public:
 		//double leftYstick = _joy->GetY();
 		//double motorOutput = m_shooter_star->GetMotorOutputPercent();
 
-		/* while button1 is held down, closed-loop on target velocity */
+		// ++++++++++++++++++++ shooter +++++++++++++++++++++++++++
+
+		// double targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
+		// frc::SmartDashboard::PutNumber ("Shooter speed", targetVel_UnitsPer100ms);
+		// if (shooter_R > 0.1) {
+		// 	targetVel_UnitsPer100ms = -1 * shooter_R * 1500.0 * 2048 / 600;
+		// 	// //frc::SmartDashboard::PutNumber("shooter target", targetVelocity_UnitsPer100ms);
+		// } else if (auto_shoot_button) {
+		// 	/* while button1 is held down, closed-loop on target velocity */
+		// 	// MJS: Falcon sensor reports 2048 units/rev
+		// 	//targetVelocity_UnitsPer100ms = frc::SmartDashboard::GetNumber ("Shooter speed", 0.0);
+		// 	// targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
+		// 	m_shooter_star->Set(ControlMode::PercentOutput, 0.0);
+        // } else {
+		// 	targetVel_UnitsPer100ms = -1 * 1000.0 * 2048 / 600;
+		// }
+		double shooter_speed_in_units = 0.0;
 		if (auto_shoot_button) {
-        	/* Speed mode */
-			/* Convert 500 RPM to units / 100ms.
-			 * 4096 Units/Rev * 500 RPM / 600 100ms/min in either direction:
-			 * velocity setpoint is in units/100ms
-			 */
-			// MJS: Falcon sensor reports 2048 units/rev
-
-			double targetVelocity_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
-        	m_shooter_star->Set(ControlMode::Velocity, targetVelocity_UnitsPer100ms); 
-
-        } else {
-			/* Percent voltage mode */
-			m_shooter_star->Set(ControlMode::PercentOutput, shooter_Y);
+			shooter_speed_in_units = 15000;
+		} else {
+			shooter_speed_in_units = 10000;
 		}
+		m_shooter_star->Set(ControlMode::Velocity, shooter_speed_in_units);
 
-		// display value of photo eye in D0
+		// test digital sensors
 		bool eye_value = eye_collector.Get();
-		frc::SmartDashboard::PutNumber("Eye", eye_value);
+		bool hall_value = hall_effect.Get();
+		//frc::SmartDashboard::PutNumber("Eye", eye_value);
+		frc::SmartDashboard::PutNumber("Hall Effect", hall_value);
 	}
 
 	void AutonomousInit() {
