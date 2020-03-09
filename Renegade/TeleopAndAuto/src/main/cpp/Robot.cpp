@@ -9,6 +9,8 @@
 #include <frc/Joystick.h>
 #include <frc/DriverStation.h>
 #include <frc/SpeedControllerGroup.h>
+#include <frc/DoubleSolenoid.h>
+#include <frc/util/color.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 #include <frc/controller/PIDController.h>
 #include <frc/smartdashboard/SendableChooser.h>
@@ -20,6 +22,9 @@
 #include <networktables/NetworkTableInstance.h>
 
 #include "Constants.h"
+
+#include "rev/ColorSensorV3.h"
+#include "rev/ColorMatch.h"
 
 using namespace frc;
 
@@ -37,7 +42,22 @@ using namespace frc;
 	const static double kConveyerSpeed = 0.5;
 	const static double kIdleShooterSpeed = 8000;
 	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
+	const static double kMinColorConfidence = 0.85;
+	const static double kControlPanelSpeed = 0.5;
 
+	/* stock color set
+	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
+	static constexpr frc::Color kGreenTarget = frc::Color(0.197, 0.561, 0.240);
+	static constexpr frc::Color kRedTarget = frc::Color(0.561, 0.232, 0.114);
+	static constexpr frc::Color kYellowTarget = frc::Color(0.361, 0.524, 0.113);
+	*/
+
+	// our mockup control panel
+	static constexpr frc::Color kBlueTarget = frc::Color(0.175, 0.436, 0.388);
+	static constexpr frc::Color kGreenTarget = frc::Color(0.206, 0.545, 0.248);
+	static constexpr frc::Color kRedTarget = frc::Color(0.424, 0.386, 0.190);
+	static constexpr frc::Color kYellowTarget = frc::Color(0.330, 0.525, 0.145);
+	static constexpr frc::Color kNoColor = frc::Color(0,0,0);
 	
 	double kP = 0.0;
     double kI = 0.0;
@@ -47,6 +67,20 @@ using namespace frc;
 	const static double kDtuned = 0.001;
 
 class Robot: public TimedRobot {
+
+	/*
+	TalonFX 0	Left Shooter Motor
+	TalonSRX 1	Left Froward Drive Motor
+	TalonSRX 2	Left Aft Drive Motor
+	TalonSRX 3	Intake Motor
+	TalonSRX 5	Shooter Turret Rotator
+	TalonSRX 7	Control Panel Rotator
+	TalonSRX 10	Vertical Conveyor
+	TalonSRX 11	Horizontal Conveyor
+	TalonSRX 13	Right Forward Drive Motor
+	TalonSRX 14	Right Aft Drive Motor
+	TalonFX 15	Right Shooter Motor
+	*/
 
 	// shooter 
 	TalonFX * m_shooter_star = new TalonFX(15); // 15 is starboard, 0 is port
@@ -65,12 +99,17 @@ class Robot: public TimedRobot {
     frc::SpeedControllerGroup m_right{m_rightfront, m_rightrear};
     frc::DifferentialDrive m_robotDrive{m_left, m_right};
 
-    // conveyers
+    // conveyers and intake
     WPI_TalonSRX m_vert_conveyer{10}; 
     WPI_TalonSRX m_hor_conveyer{11};
+    WPI_TalonSRX m_intake{3};
 
-	// turret
+	// turret and control panel gizmo
 	TalonSRX * m_turret = new TalonSRX(5); 
+	WPI_TalonSRX m_control_spinner{7}; 
+
+	// solenoids
+	frc::DoubleSolenoid m_ponytail_solenoid{0, 1};
 
 	// joysticks
 	Joystick *m_stick, *m_stick_copilot;
@@ -80,7 +119,25 @@ class Robot: public TimedRobot {
 	frc::DigitalInput eye_collector{0}; // photo eye at collector
 	frc::DigitalInput eye_turret{1}; // photo eye at turret
 	frc::DigitalInput hall_effect{2}; // hall effect sensor on turret
+	static constexpr auto i2cPort = frc::I2C::Port::kOnboard;
+	rev::ColorSensorV3 m_colorSensor{i2cPort};
+	rev::ColorMatch m_colorMatcher;
 
+	// state machine for counting rotations of control panel
+	enum RotateStates {
+		kUnknownState = 0,
+		kOffStartingColor,
+		kOnStartingColor
+	};
+	int m_wheel_state = kUnknownState;
+	int m_wheel_state_to_color = kOffTargetColor;
+	frc::Color m_starting_color = kNoColor;
+	int m_half_rotation_count = 0;
+	// state machine for spinning to color
+	enum RotateToColorStates {
+		kOffTargetColor = 0,
+		kOnTargetColor
+	};
 	// pid and timer
     frc2::PIDController *m_pidController;
     frc::Timer m_timer;
@@ -155,13 +212,13 @@ public:
 		/* set the peak and nominal outputs, 12V means full */
 		m_turret->ConfigNominalOutputForward(0, kTimeoutMs);
 		m_turret->ConfigNominalOutputReverse(0, kTimeoutMs);
-		m_turret->ConfigPeakOutputForward(0.5, kTimeoutMs);
-		m_turret->ConfigPeakOutputReverse(-0.5, kTimeoutMs);
+		m_turret->ConfigPeakOutputForward(1, kTimeoutMs);
+		m_turret->ConfigPeakOutputReverse(-1, kTimeoutMs);
 
 		/* set closed loop gains in slot0 */
 		m_turret->Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
-		m_turret->Config_kP(kPIDLoopIdx, 0.2, kTimeoutMs);
-		m_turret->Config_kI(kPIDLoopIdx, 0.1, kTimeoutMs);
+		m_turret->Config_kP(kPIDLoopIdx, 0.1, kTimeoutMs);
+		m_turret->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
 		m_turret->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
 
 		/************** other motor setup *****************/
@@ -223,6 +280,12 @@ public:
 		// for testing shooter ranges
 		frc::SmartDashboard::PutNumber("kP", kP);
 
+		// control panel colors
+		m_colorMatcher.AddColorMatch(kBlueTarget);
+		m_colorMatcher.AddColorMatch(kGreenTarget);
+		m_colorMatcher.AddColorMatch(kRedTarget);
+		m_colorMatcher.AddColorMatch(kYellowTarget);
+
 		/********************** stuff ************************/
 
 		rotateToAngleRate = 0.0f;
@@ -231,6 +294,11 @@ public:
 
 	void TeleopInit() {
 		ahrs->ZeroYaw();
+
+		m_wheel_state = kUnknownState;
+		m_starting_color = kNoColor;
+		m_half_rotation_count = 0;
+		
 		kP = kPtuned;
 		kI = kItuned;
 		kD = kDtuned;
@@ -283,6 +351,65 @@ public:
 		m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 	}
 
+	void SpinThreeTimes() {
+		std::string colorString;
+		double confidence = 0.0;
+
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // lower spinner here
+		
+		frc::Color detectedColor = m_colorSensor.GetColor();
+		frc::Color matchedColor = m_colorMatcher.MatchClosestColor(detectedColor, confidence);
+
+		switch (m_wheel_state) {
+		case kUnknownState: 
+			m_control_spinner.Set(kControlPanelSpeed); // spinning
+			if (confidence > kMinColorConfidence) {
+				m_wheel_state = kOnStartingColor;
+				m_starting_color = matchedColor;
+			}
+			break;
+		case kOnStartingColor:
+			if (confidence > kMinColorConfidence && !(matchedColor == m_starting_color)) {
+				m_wheel_state = kOffStartingColor;
+			}
+			if (m_half_rotation_count >= 7) { // 3.5 times around
+				m_control_spinner.Set(0.0); // stop
+			}
+			break;
+		case kOffStartingColor:
+			if (confidence > kMinColorConfidence && matchedColor == m_starting_color) {
+				m_wheel_state = kOnStartingColor;
+				m_half_rotation_count++;
+			}
+			break;
+		}
+	}
+
+	void SpinToColor(frc::Color spin_to_color) {
+		std::string colorString;
+		double confidence = 0.0;
+
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // lower spinner here
+
+		frc::Color detectedColor = m_colorSensor.GetColor();
+		frc::Color matchedColor = m_colorMatcher.MatchClosestColor(detectedColor, confidence);
+
+		// spin to color
+		switch (m_wheel_state_to_color) {
+			case kOnTargetColor:
+				// stop; we're there
+				m_control_spinner.Set(0.0);
+				break;
+			case kOffTargetColor:
+				if (confidence > kMinColorConfidence && matchedColor == spin_to_color) {
+					m_wheel_state_to_color = kOnTargetColor;
+				} else {
+					m_control_spinner.Set(kControlPanelSpeed);
+				}
+				break;
+		}
+	}
+
 	void TeleopPeriodic() {
 
 		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
@@ -290,10 +417,25 @@ public:
 
 		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
 
-		/**************** buttons ******************/
+		/****************************************** buttons and joysticks **************************************/
 
-		bool reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
-		bool auto_shoot_button =  m_stick_copilot->GetRawButton(2);
+		/************************************** pilot 
+		Left Stick	Robot relative arcade	
+		Right Stick	Field relative arcade	
+		D Pad	Rotate to compass pts	
+		Button 1	Reset Yaw / color	
+		Button 2	Hang / color	
+		Button 3	color	
+		Button 4	Spin control panel / color	
+		Button 5	Spin to color	
+		Button 6	6+8 to deploy hanger	
+		Button 7	Turbo speed	
+		Button 8	Hang	
+		*/
+		double robot_rel_X = m_stick->GetRawAxis(0);  // robot relative
+		double robot_rel_Y = -m_stick->GetRawAxis(1);
+		double field_rel_X = m_stick->GetRawAxis(2);  // field relative
+		double field_rel_Y = -m_stick->GetRawAxis(3);
 		bool rotateToAngle = false;
 		if ( m_stick->GetPOV() == 0) {
 			m_pidController->SetSetpoint(0.0f);
@@ -308,20 +450,61 @@ public:
 			m_pidController->SetSetpoint(-90.0f);
 			rotateToAngle = true;
 		}
+		bool reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
+		bool hang_button = m_stick->GetRawButton(2);
+		bool spin_control_panel_button = m_stick->GetRawButton(4);
+		bool spin_to_color_pressed = false;
+		frc::Color spin_to_color = kNoColor;
+		if (m_stick->GetRawButton(5)) { // spin to color
+			if (m_stick->GetRawButton(1)) { // blue
+				spin_to_color = kBlueTarget; // these will have to be shifted
+				spin_to_color_pressed = true;
+			} else if (m_stick->GetRawButton(2)) { // green
+				spin_to_color = kBlueTarget; 
+				spin_to_color_pressed = true;
+			}if (m_stick->GetRawButton(3)) { // red
+				spin_to_color = kBlueTarget; 
+				spin_to_color_pressed = true;
+			}if (m_stick->GetRawButton(4)) { // yellow
+				spin_to_color = kBlueTarget; 
+				spin_to_color_pressed = true;
+			}
+		}
+		bool deploy_hanger_pressed = false;
+		if (m_stick->GetRawButton(6) && m_stick->GetRawButton(8)) {
+			deploy_hanger_pressed = true;
+		}
+		bool high_gear_button_presssed = m_stick->GetRawButton(7);
+		bool hang_pressed = false;
+		if (m_stick->GetRawButton(5) && m_stick->GetRawButton(7)) {
+			hang_pressed = true;
+		}
 
-		/******************** joysticks **************************/
-
-		double field_rel_X = m_stick->GetRawAxis(2);
-		double field_rel_Y = -m_stick->GetRawAxis(3);
-		double conveyer_Y = m_stick_copilot->GetRawAxis(3);
-		double shooter_X = m_stick_copilot->GetRawAxis(0);
+		/****************************************** co-pilot
+		Left Stick	Manual turret dir/speed	
+		Right Stick	Manual intake in/out	
+		D Pad	Turret positioning	
+		Button 1		
+		Button 2	Automatic shoot	
+		Button 3		
+		Button 4	Automatic intake	
+		Button 5	Boost shooter up	
+		Button 6	Conveyer in/up	
+		Button 7	De-boost shooter down	
+		Button 8	Conveyer down/out	
+		*/ 
+		double shooter_X = m_stick_copilot->GetRawAxis(0);  // manual turret operation
 		double shooter_Y = m_stick_copilot->GetRawAxis(1);
 		double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y);
+		double conveyer_Y = m_stick_copilot->GetRawAxis(3);  // manual conveyer
+		bool auto_shoot_button =  m_stick_copilot->GetRawButton(2);
 
 		//frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
 		//frc::SmartDashboard::PutNumber("Shooter Magnitude", shooter_R);
 
-		/******************* limelight ****************************/
+
+		/****************************************** limelight *****************************************************/
+
 
 		double targetSeen = m_limetable->GetNumber("tv",0.0);
 		double targetArea = m_limetable->GetNumber("ta",0.0);
@@ -340,8 +523,7 @@ public:
 		  }
 		}
 
-
-		/****************** move stuff *******************/
+		/********************************************** move stuff ********************************************/
 
 		//m_turret->Set(ControlMode::PercentOutput, shooter_Y);  // temporary test
 
@@ -378,9 +560,6 @@ public:
 		// trim the speed so it's not too fast
 		rotateToAngleRate = TrimSpeed(rotateToAngleRate, kMaxRotateRate);
 
-		// high and low speed scaling
-		// bool slow_gear_button_pressed = m_stick->GetRawButton(5);
-		bool high_gear_button_presssed = m_stick->GetRawButton(7);
 		// if (slow_gear_button_pressed) {speed_factor = kSlowSpeedFactor;}
 		if (high_gear_button_presssed) {speed_factor = kFastSpeedFactor;}
 		else {speed_factor = kSlowSpeedFactor;}
@@ -472,8 +651,15 @@ public:
 
 		// test digital sensors
 		bool eye_value = eye_collector.Get();
-
 		//frc::SmartDashboard::PutNumber("Eye", eye_value);
+
+		// operate control panel
+		if (spin_control_panel_button) {
+			SpinThreeTimes();
+		}
+		if (spin_to_color_pressed) {
+			SpinToColor(spin_to_color);
+		}
 		
 	}
 
