@@ -36,7 +36,7 @@ using namespace frc;
 	const static double kToleranceDegrees = 2.0f;
 	const static double kMaxRotateRate = 0.5;
 	const static double kGamepadDeadZone = 0.15;
-	const static double kSlowSpeedFactor = 0.5;
+	const static double kSlowSpeedFactor = 0.6;
 	const static double kFastSpeedFactor = 8.0;
 	const static double kMinTargetAreaPercent = 0.1;
 	const static double kConveyerSpeed = 0.5;
@@ -568,20 +568,20 @@ public:
 		try {
 
 			if (rotateToAngle) {
-			// MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
-			//frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
-			m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
-			// } else if (stepOver) {
-			//   frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
-			//   if (m_pidController->AtSetpoint()) {
-			//     m_robotDrive.TankDrive(MaxRotateRate, MaxRotateRate, false); // drive forward
-			//   } else {
-			//     m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
-			//   }
+				// MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
+				//frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
+				m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
+				// } else if (stepOver) {
+				//   frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
+				//   if (m_pidController->AtSetpoint()) {
+				//     m_robotDrive.TankDrive(MaxRotateRate, MaxRotateRate, false); // drive forward
+				//   } else {
+				//     m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
+				//   }
 			} else {
-			// not rotating; drive by stick
-			m_robotDrive.ArcadeDrive(ScaleSpeed(-m_stick->GetY(), speed_factor), ScaleSpeed(m_stick->GetX(), speed_factor));
-			m_pidController->Reset(); // clears out integral state, etc
+				// not rotating; drive by stick
+				m_robotDrive.ArcadeDrive(ScaleSpeed(robot_rel_Y, speed_factor), ScaleSpeed(robot_rel_X, speed_factor));
+				m_pidController->Reset(); // clears out integral state, etc
 			}
 		} catch (std::exception& ex ) {
 			std::string err_string = "Error communicating with Drive System:  ";
