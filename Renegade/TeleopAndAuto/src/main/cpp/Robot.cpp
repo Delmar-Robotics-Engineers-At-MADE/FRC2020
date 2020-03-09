@@ -40,7 +40,8 @@ using namespace frc;
 	const static double kFastSpeedFactor = 8.0;
 	const static double kMinTargetAreaPercent = 0.1;
 	const static double kConveyerSpeed = 0.5;
-	const static double kIdleShooterSpeed = 8000;
+	const static double kIntakeSpeed = 0.5;
+	const static double kIdleShooterSpeed = 6000;
 	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
 	const static double kMinColorConfidence = 0.85;
 	const static double kControlPanelSpeed = 0.5;
@@ -315,8 +316,8 @@ public:
 
 		// move turret to starting position using Hall sensor
 
-		int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
-		m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
+		//int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		//m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
 		m_timer.Reset();
 		m_timer.Start();
 		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
@@ -496,8 +497,15 @@ public:
 		double shooter_X = m_stick_copilot->GetRawAxis(0);  // manual turret operation
 		double shooter_Y = m_stick_copilot->GetRawAxis(1);
 		double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y);
-		double conveyer_Y = m_stick_copilot->GetRawAxis(3);  // manual conveyer
+		double intake_X = m_stick_copilot->GetRawAxis(2); // manual turret operation
+		double intake_Y = m_stick_copilot->GetRawAxis(3);
 		bool auto_shoot_button =  m_stick_copilot->GetRawButton(2);
+		bool auto_intake_button =  m_stick_copilot->GetRawButton(4);
+		bool boost_shooter_up_button =  m_stick_copilot->GetRawButton(5);
+		bool boost_shooter_down_button =  m_stick_copilot->GetRawButton(7);
+		bool conveyer_in_button =  m_stick_copilot->GetRawButton(6);
+		bool conveyer_out_button =  m_stick_copilot->GetRawButton(8);
+
 
 		//frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
 		//frc::SmartDashboard::PutNumber("Shooter Magnitude", shooter_R);
@@ -527,6 +535,11 @@ public:
 
 		//m_turret->Set(ControlMode::PercentOutput, shooter_Y);  // temporary test
 
+		if (auto_intake_button) {
+			// bring balls in and index using photo eye
+		} else { // enable manual control of intake
+			m_intake.Set(-intake_Y * kIntakeSpeed);
+		}
 		
 		// reset gyro angle
 		if ( reset_yaw_button_pressed ) {
@@ -637,11 +650,15 @@ public:
 				conveyer_speed = -kConveyerSpeed;
 			} 
 			//if (m_shooter_star->GetClosedLoopError < kShooterSpeedTolerance)
-		} else {
+		} else { // no target; permit manual control
 			frc::SmartDashboard::PutNumber("Seen", false);
 			shooter_speed_in_units = kIdleShooterSpeed;
 			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
-			conveyer_speed = conveyer_Y;
+			if (conveyer_in_button) {
+				conveyer_speed = -kConveyerSpeed;
+			} else if (conveyer_out_button) {
+				conveyer_speed = kConveyerSpeed;
+			}
 		}
 		
 		m_vert_conveyer.Set(conveyer_speed);
