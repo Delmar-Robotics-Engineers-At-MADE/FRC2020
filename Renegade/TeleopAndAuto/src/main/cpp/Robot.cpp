@@ -181,6 +181,10 @@ class Robot: public TimedRobot {
 	// misc members
     double rotateToAngleRate;           // Current rotation rate
     double speed_factor = 0.5;
+	frc::SendableChooser<std::string> m_chooser;
+	const std::string kAutoNameDefault = "Move Wheels";
+	const std::string kAutoNameCustom = "Just Initialize";
+	std::string m_autoSelected;
 
 	double TrimSpeed (double s, double max) {
 	double result = s > max ? max : s;
@@ -319,6 +323,10 @@ public:
 
 		rotateToAngleRate = 0.0f;
 		m_robotDrive.SetExpiration(0.1);
+
+		m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
+		m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
+		frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
 	}
 
 	void MoveTurretToStartingPosition() {
@@ -860,6 +868,11 @@ public:
 	}
 
 	void AutonomousInit() {
+		m_autoSelected = m_chooser.GetSelected();
+		// m_autoSelected = SmartDashboard::GetString("Auto Selector",
+		//     kAutoNameDefault);
+		std::cout << "Auto selected: " << m_autoSelected << std::endl;
+
 		m_timer.Reset();
 		m_timer.Start();
 	}
