@@ -39,17 +39,29 @@ using namespace frc;
 	const static double kSlowSpeedFactor = 0.6;
 	const static double kFastSpeedFactor = 8.0;
 	const static double kMinTargetAreaPercent = 0.1;
+
 	const static double kConveyerSpeed = 0.66;
 	const static double kIntakeSpeed = 0.7;
-	const static double kIdleShooterSpeed = 6000;
-	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
-	const static double kMinColorConfidence = 0.85;
-	const static double kControlPanelSpeed = 1.0;
 	const static double kIntakeDelayArrival = 1;
 	const static double kIntakeDelayGap = 0.05;
-	const static double kTurretSpeedInitial = 1.0;
+
+	const static double kIdleShooterSpeed = 6000;
+	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
+
+	const static double kMinColorConfidence = 0.85;
+	const static double kControlPanelSpeed = 1.0;
+
+	const static double kTurretSpeedInitial = 0.4;
+	const static double kTurretSpeedMax = 0.6;
 	const static long kMaxTurretInitialSeek = -6000; // in encoder counts
 	const static long kTurretTolerance = 500; // in encoder counts
+	const static long kTurretLimitPort = 15000;
+	const static long kTurretLimitStarboard = -15000;
+	const static long kTurretUP = 0;
+	const static long kTurretRIGHT = 8000;
+	const static long kTurretDOWN = 12000;
+	const static long kTurretLEFT = -8000;
+
 
 	/* stock color set
 	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
@@ -65,12 +77,12 @@ using namespace frc;
 	static constexpr frc::Color kYellowTarget = frc::Color(0.330, 0.525, 0.145);
 	static constexpr frc::Color kNoColor = frc::Color(0,0,0);
 	
-	double kP = 0.0;
-    double kI = 0.0;
-    double kD = 0.0;
-	const static double kPtuned = 0.006;
-	const static double kItuned = 0.0015;
-	const static double kDtuned = 0.001;
+	const static double kPtunedGyro = 0.006;
+	const static double kItunedGyro = 0.0015;
+	const static double kDtunedGyro = 0.001;
+	const static double kPturret = 0.0;
+	const static double kIturret = 0.1;
+	const static double kDturret = 0.0;
 
 class Robot: public TimedRobot {
 
@@ -158,7 +170,9 @@ class Robot: public TimedRobot {
 	IntakeStates m_intake_state = kBreachEmpty;
 
 	// pid and timer
-    frc2::PIDController *m_pidController;
+    frc2::PIDController *m_pidController_gyro; // for orienting robot with gyro
+	frc2::PIDController *m_pidController_limelight_robot;
+	frc2::PIDController *m_pidController_limelight_turret;
     frc::Timer m_timer;
 
 	// limelight
@@ -225,20 +239,19 @@ public:
 
 		/* choose the sensor and sensor direction */
 		m_turret->ConfigSelectedFeedbackSensor(FeedbackDevice::QuadEncoder, kPIDLoopIdx,kTimeoutMs);
-		m_shooter_star->SetInverted(true);  // want positive to be clockwise
 		m_turret->SetSensorPhase(false);
 
 		/* set the peak and nominal outputs, 12V means full */
 		m_turret->ConfigNominalOutputForward(0, kTimeoutMs);
 		m_turret->ConfigNominalOutputReverse(0, kTimeoutMs);
-		m_turret->ConfigPeakOutputForward(1, kTimeoutMs);
-		m_turret->ConfigPeakOutputReverse(-1, kTimeoutMs);
+		m_turret->ConfigPeakOutputForward(kTurretSpeedMax, kTimeoutMs);
+		m_turret->ConfigPeakOutputReverse(-kTurretSpeedMax, kTimeoutMs);
 
 		/* set closed loop gains in slot0 */
 		m_turret->Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
-		m_turret->Config_kP(kPIDLoopIdx, 1.0, kTimeoutMs);
-		m_turret->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
-		m_turret->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_turret->Config_kP(kPIDLoopIdx, kPturret, kTimeoutMs);
+		m_turret->Config_kI(kPIDLoopIdx, kIturret, kTimeoutMs);
+		m_turret->Config_kD(kPIDLoopIdx, kDturret, kTimeoutMs);
 
 		/************** other motor setup *****************/
 
@@ -296,9 +309,6 @@ public:
 		frc::SmartDashboard::PutNumber("MaxRotateRate", MaxRotateRate);
 		*/
 
-		// for testing shooter ranges
-		frc::SmartDashboard::PutNumber("kP", kP);
-
 		// control panel colors
 		m_colorMatcher.AddColorMatch(kBlueTarget);
 		m_colorMatcher.AddColorMatch(kGreenTarget);
@@ -313,6 +323,8 @@ public:
 
 	void MoveTurretToStartingPosition() {
 
+		bool turret_on_hall = false;
+
 		// code from WPI to set starting position
 		// int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
 		// m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
@@ -325,34 +337,61 @@ public:
 		//m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
 		m_timer.Reset();
 		m_timer.Start();
-		frc::SmartDashboard::PutNumber("timer", m_timer.Get());
-		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
-		//m_turret->Set(ControlMode::Position, targetPositionRotations); 
 
-		m_turret->Set(ControlMode::PercentOutput, -kTurretSpeedInitial);
-		while (m_timer.Get() < 1) {
-			frc::SmartDashboard::PutNumber("turret pos2", m_turret->GetSelectedSensorVelocity(0));
-		}
-		//while (m_timer.Get() < 30) {
-			if (!hall_effect.Get()) { // false means turret is on sensor
-				//m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
-			}
-			// going counter clockwise, encoder counts will be negative
-			if (abs(m_turret->GetSelectedSensorPosition(0) - kMaxTurretInitialSeek) < kTurretTolerance) {
+		m_turret->Set(ControlMode::Position, kMaxTurretInitialSeek);  // positive moves turret clockwise
+
+		// m_turret->Set(ControlMode::PercentOutput, -kTurretSpeedInitial);
+		// while (m_timer.Get() < 1) {
+		// 	frc::SmartDashboard::PutNumber("turret pos2", m_turret->GetSelectedSensorVelocity(0));
+		// }
+		while (m_timer.Get() < 3) {
+			turret_on_hall = !hall_effect.Get();
+			if (turret_on_hall) { 
 				m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
+				break; // exit loop
 			}
-			frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
-		//}
-		frc::SmartDashboard::PutNumber("timer2", m_timer.Get());
+			Wait(0.1);
+			// going counter clockwise, encoder counts will be negative
+			// if (abs(m_turret->GetSelectedSensorPosition(0) - kMaxTurretInitialSeek) < kTurretTolerance) {
+			// 	m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
+			// }
+			frc::SmartDashboard::PutNumber("turret pos1", m_turret->GetSelectedSensorPosition(0));
+		} // while
 
-		bool turret_on_hall = !hall_effect.Get();
+		turret_on_hall = !hall_effect.Get();
 		if (!turret_on_hall) {
 			// we didn't land on Hall sensor, go back the other way looking for it
 			//targetPositionRotations = -1500; // positive moves turret clockwise
 			//m_turret->Set(ControlMode::Position, targetPositionRotations);
 		}
 		frc::SmartDashboard::PutNumber("On Hall Effect", turret_on_hall);
-		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
+		frc::SmartDashboard::PutNumber("turret pos2", m_turret->GetSelectedSensorPosition(0));
+	}
+
+	void TrackTargetWithRobot(double targetOffsetAngle) {
+		m_pidController_limelight_robot->SetSetpoint(0);
+		double diff_speed = m_pidController_limelight_robot->Calculate(targetOffsetAngle);
+
+		// move robot
+		m_robotDrive.TankDrive(-diff_speed, diff_speed, false);
+
+		// check to see if we're within tolerance, and if so, reset
+		if (m_pidController_limelight_robot->AtSetpoint()) {
+			m_pidController_limelight_robot->Reset(); // clears out integral state, etc
+		}
+	}
+
+	void TrackTargetWithTurret(double targetOffsetAngle) {
+		double current_pos = m_turret->GetSelectedSensorPosition(0);
+		if (current_pos > kTurretLimitStarboard && current_pos < kTurretLimitPort) {
+			m_pidController_limelight_robot->SetSetpoint(0);
+			double new_speed = m_pidController_limelight_robot->Calculate(targetOffsetAngle);
+
+			// move turret
+			m_turret->Set(ControlMode::Velocity, new_speed);
+
+			// hold position; don't reset when on target
+		}
 	}
 
 	void TeleopInit() {
@@ -363,19 +402,23 @@ public:
 		m_half_rotation_count = 0;
 		m_intake_state = kBreachEmpty;
 		
-		kP = kPtuned;
-		kI = kItuned;
-		kD = kDtuned;
+		double P_gyro = kPtunedGyro;
+		double I_gyro = kItunedGyro;
+		double D_gyro = kDtunedGyro;
 		/* used to tune PID numbers
 		kP = frc::SmartDashboard::GetNumber("kP", kP);
 		kI = frc::SmartDashboard::GetNumber("kI", kI);
 		kD = frc::SmartDashboard::GetNumber("kD", kD);
 		MaxRotateRate = frc::SmartDashboard::GetNumber("MaxRotateRate", MaxRotateRate);
 		*/
-		// used to tune shooter trajectory
-		frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
-		m_pidController = new frc2::PIDController (kP, kI, kD);
-		m_pidController->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
+
+		// PIDs
+		m_pidController_gyro = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
+		m_pidController_gyro->SetTolerance(8, 8);  // within 8 degrees of direction is considered on set point
+		m_pidController_limelight_robot = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
+		m_pidController_limelight_robot->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
+		m_pidController_limelight_turret = new frc2::PIDController (kPturret, kIturret, kDturret);
+		m_pidController_limelight_turret->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
 
 		// position turret
 		MoveTurretToStartingPosition();
@@ -560,16 +603,16 @@ public:
 		double field_rel_R = sqrt(field_rel_X*field_rel_X + field_rel_Y*field_rel_Y);
 		bool rotateToAngle = false;
 		if ( m_stick->GetPOV() == 0) {
-			m_pidController->SetSetpoint(0.0f);
+			m_pidController_gyro->SetSetpoint(0.0f);
 			rotateToAngle = true;
 		} else if ( m_stick->GetPOV() == 90) {
-			m_pidController->SetSetpoint(90.0f);
+			m_pidController_gyro->SetSetpoint(90.0f);
 			rotateToAngle = true;
 		} else if ( m_stick->GetPOV() == 180) {
-			m_pidController->SetSetpoint(179.9f);
+			m_pidController_gyro->SetSetpoint(179.9f);
 			rotateToAngle = true;
 		} else if ( m_stick->GetPOV() == 270) {
-			m_pidController->SetSetpoint(-90.0f);
+			m_pidController_gyro->SetSetpoint(-90.0f);
 			rotateToAngle = true;
 		}
 		bool reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
@@ -621,6 +664,18 @@ public:
 		double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y);
 		double intake_X = m_stick_copilot->GetRawAxis(2); // manual turret operation
 		double intake_Y = m_stick_copilot->GetRawAxis(3);
+
+		long turret_manual_position = 0;
+		if ( m_stick_copilot->GetPOV() == 0) {
+			turret_manual_position = kTurretUP;
+		} else if ( m_stick_copilot->GetPOV() == 90) {
+			turret_manual_position = kTurretRIGHT;
+		} else if ( m_stick_copilot->GetPOV() == 180) {
+			turret_manual_position = kTurretDOWN;
+		} else if ( m_stick_copilot->GetPOV() == 270) {
+			turret_manual_position = kTurretLEFT;
+		}
+
 		bool auto_shoot_button =  m_stick_copilot->GetRawButton(2);
 		bool auto_intake_button =  m_stick_copilot->GetRawButton(4);
 		bool boost_shooter_up_button =  m_stick_copilot->GetRawButton(5);
@@ -679,13 +734,13 @@ public:
 			rotateToAngle = true;
 			double angle =  90 - ConvertRadsToDegrees(atan(field_rel_Y/abs(field_rel_X)));
 			angle = copysign(angle, field_rel_X); // make angle negative if X is negative
-			m_pidController->SetSetpoint(angle);
+			m_pidController_gyro->SetSetpoint(angle);
 		}
-		//frc::SmartDashboard::PutNumber ("Angle set point", m_pidController->GetSetpoint());
+		//frc::SmartDashboard::PutNumber ("Angle set point", m_pidController_gyro->GetSetpoint());
 		//frc::SmartDashboard::PutNumber ("X", field_rel_X);
 		//frc::SmartDashboard::PutNumber ("Y", field_rel_Y);
 
-		rotateToAngleRate = m_pidController->Calculate(ahrs->GetAngle());
+		rotateToAngleRate = m_pidController_gyro->Calculate(ahrs->GetAngle());
 		// trim the speed so it's not too fast
 		rotateToAngleRate = TrimSpeed(rotateToAngleRate, kMaxRotateRate);
 
@@ -713,7 +768,7 @@ public:
 			} else {
 				// not rotating; drive by stick
 				m_robotDrive.ArcadeDrive(ScaleSpeed(robot_rel_Y, speed_factor), ScaleSpeed(robot_rel_X, speed_factor));
-				m_pidController->Reset(); // clears out integral state, etc
+				m_pidController_gyro->Reset(); // clears out integral state, etc
 			}
 		} catch (std::exception& ex ) {
 			std::string err_string = "Error communicating with Drive System:  ";
@@ -806,6 +861,9 @@ public:
 		}
 		frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
 		
+		if (turret_manual_position > 0) {
+			m_turret->Set(ControlMode::Position, turret_manual_position);
+		}
 	}
 
 	void AutonomousInit() {
