@@ -589,7 +589,7 @@ public:
 		D Pad	Rotate to compass pts	
 		Button 1	Reset Yaw / color	
 		Button 2	Hang / color	
-		Button 3	color	
+		Button 3	Drive to CP / color	
 		Button 4	Spin control panel / color	
 		Button 5	Spin to color	
 		Button 6	6+8 to deploy hanger	
@@ -615,9 +615,10 @@ public:
 			m_pidController_gyro->SetSetpoint(-90.0f);
 			rotateToAngle = true;
 		}
-		bool reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
-		bool hang_button = m_stick->GetRawButton(2);
-		bool spin_control_panel_button = m_stick->GetRawButton(4);
+		bool reset_yaw_button_pressed = false;  // reset gyro angle
+		bool hang_button = false;
+		bool drive_to_cp = false;
+		bool spin_control_panel_button = false;
 		bool spin_to_color_pressed = false;
 		frc::Color spin_to_color = kNoColor;
 		if (m_stick->GetRawButton(5)) { // spin to color
@@ -635,6 +636,11 @@ public:
 				spin_to_color_pressed = true;
 			}
 			frc::SmartDashboard::PutString ("Spin to", ColorToString(spin_to_color));
+		} else { // color buttons have normal functions
+			reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
+			hang_button = m_stick->GetRawButton(2);
+			drive_to_cp = m_stick->GetRawButton(3);
+			spin_control_panel_button = m_stick->GetRawButton(4);
 		}
 		bool deploy_hanger_pressed = false;
 		if (m_stick->GetRawButton(6) && m_stick->GetRawButton(8)) {
