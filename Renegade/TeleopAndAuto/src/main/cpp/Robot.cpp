@@ -44,9 +44,12 @@ using namespace frc;
 	const static double kIdleShooterSpeed = 6000;
 	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
 	const static double kMinColorConfidence = 0.85;
-	const static double kControlPanelSpeed = 0.15;
+	const static double kControlPanelSpeed = 1.0;
 	const static double kIntakeDelayArrival = 1;
 	const static double kIntakeDelayGap = 0.05;
+	const static double kTurretSpeedInitial = 1.0;
+	const static long kMaxTurretInitialSeek = -6000; // in encoder counts
+	const static long kTurretTolerance = 500; // in encoder counts
 
 	/* stock color set
 	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
@@ -130,7 +133,8 @@ class Robot: public TimedRobot {
 	enum RotateStates {
 		kUnknownState = 0,
 		kOffStartingColor,
-		kOnStartingColor
+		kOnStartingColor,
+		kCompletedRotations
 	};
 	RotateStates m_wheel_state = kUnknownState;
 	frc::Color m_starting_color = kNoColor;
@@ -138,9 +142,11 @@ class Robot: public TimedRobot {
 	// state machine for spinning to color
 	enum RotateToColorStates {
 		kOffTargetColor = 0,
-		kOnTargetColor
+		kOnTargetColor,
+		kToColorComplete
 	};
 	RotateToColorStates m_wheel_state_to_color = kOffTargetColor;
+	bool m_need_to_reset_spinner = false;
 
 	// state machine for intake
 	enum IntakeStates {
@@ -214,8 +220,8 @@ public:
 		/************** turret setup **********************/
 
 		m_turret->ConfigFactoryDefault();
-		int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
-		m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
+		// int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		// m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
 
 		/* choose the sensor and sensor direction */
 		m_turret->ConfigSelectedFeedbackSensor(FeedbackDevice::QuadEncoder, kPIDLoopIdx,kTimeoutMs);
@@ -230,7 +236,7 @@ public:
 
 		/* set closed loop gains in slot0 */
 		m_turret->Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
-		m_turret->Config_kP(kPIDLoopIdx, 0.1, kTimeoutMs);
+		m_turret->Config_kP(kPIDLoopIdx, 1.0, kTimeoutMs);
 		m_turret->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
 		m_turret->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
 
@@ -305,6 +311,50 @@ public:
 		m_robotDrive.SetExpiration(0.1);
 	}
 
+	void MoveTurretToStartingPosition() {
+
+		// code from WPI to set starting position
+		// int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		// m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
+		m_turret->SetSelectedSensorPosition(0, kPIDLoopIdx, kTimeoutMs);
+
+		
+		// move turret to starting position using Hall sensor
+
+		//int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		//m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
+		m_timer.Reset();
+		m_timer.Start();
+		frc::SmartDashboard::PutNumber("timer", m_timer.Get());
+		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
+		//m_turret->Set(ControlMode::Position, targetPositionRotations); 
+
+		m_turret->Set(ControlMode::PercentOutput, -kTurretSpeedInitial);
+		while (m_timer.Get() < 1) {
+			frc::SmartDashboard::PutNumber("turret pos2", m_turret->GetSelectedSensorVelocity(0));
+		}
+		//while (m_timer.Get() < 30) {
+			if (!hall_effect.Get()) { // false means turret is on sensor
+				//m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
+			}
+			// going counter clockwise, encoder counts will be negative
+			if (abs(m_turret->GetSelectedSensorPosition(0) - kMaxTurretInitialSeek) < kTurretTolerance) {
+				m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
+			}
+			frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
+		//}
+		frc::SmartDashboard::PutNumber("timer2", m_timer.Get());
+
+		bool turret_on_hall = !hall_effect.Get();
+		if (!turret_on_hall) {
+			// we didn't land on Hall sensor, go back the other way looking for it
+			//targetPositionRotations = -1500; // positive moves turret clockwise
+			//m_turret->Set(ControlMode::Position, targetPositionRotations);
+		}
+		frc::SmartDashboard::PutNumber("On Hall Effect", turret_on_hall);
+		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
+	}
+
 	void TeleopInit() {
 		ahrs->ZeroYaw();
 
@@ -327,30 +377,8 @@ public:
 		m_pidController = new frc2::PIDController (kP, kI, kD);
 		m_pidController->SetTolerance(8, 8);  // within 8 degrees of target is considered on set point
 
-		// move turret to starting position using Hall sensor
-
-		//int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
-		//m_turret->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx, kTimeoutMs);
-		m_timer.Reset();
-		m_timer.Start();
-		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
-		//m_turret->Set(ControlMode::Position, targetPositionRotations); 
-
-		while (m_timer.Get() < 3) {
-			if (!hall_effect.Get()) { // false means turret is on sensor
-				m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
-			}
-		}
-
-		bool turret_on_hall = !hall_effect.Get();
-		if (!turret_on_hall) {
-			// we didn't land on Hall sensor, go back the other way looking for it
-			//targetPositionRotations = -1500; // positive moves turret clockwise
-			//m_turret->Set(ControlMode::Position, targetPositionRotations);
-		}
-		frc::SmartDashboard::PutNumber("On Hall Effect", turret_on_hall);
-		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
-
+		// position turret
+		MoveTurretToStartingPosition();
 
 		// ramp up shooter slowly
 		// m_timer.Reset();
@@ -366,6 +394,8 @@ public:
 
 		// position ponytail up
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward);
+
+
 	}
 
 	std::string ColorToString (frc::Color color) {
@@ -388,7 +418,8 @@ public:
 		m_wheel_state = kUnknownState;
 		m_wheel_state_to_color = kOffTargetColor;
 		m_control_spinner.Set(0.0);
-		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward);
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
+		frc::SmartDashboard::PutString("reset", "happened");
 	}
 
 	void SpinThreeTimes() {
@@ -413,7 +444,7 @@ public:
 				m_wheel_state = kOffStartingColor;
 			}
 			if (m_half_rotation_count >= 7) { // 3.5 times around
-				m_control_spinner.Set(0.0); // stop
+				m_wheel_state = kCompletedRotations;
 			}
 			break;
 		case kOffStartingColor:
@@ -422,17 +453,21 @@ public:
 				m_half_rotation_count++;
 			}
 			break;
+		case kCompletedRotations:
+			m_control_spinner.Set(0.0); // stop
+			m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
+			break;
 		}
 		frc::SmartDashboard::PutString("color", ColorToString(matchedColor));
 		frc::SmartDashboard::PutNumber("confidence", confidence);
-		frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
+		
 	}
 
 	void SpinToColor(frc::Color spin_to_color) {
 		std::string colorString;
 		double confidence = 0.0;
 
-		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // lower spinner here
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 
 		frc::Color detectedColor = m_colorSensor.GetColor();
 		frc::Color matchedColor = m_colorMatcher.MatchClosestColor(detectedColor, confidence);
@@ -441,7 +476,7 @@ public:
 		switch (m_wheel_state_to_color) {
 			case kOnTargetColor:
 				// stop; we're there
-				m_control_spinner.Set(0.0);
+				m_wheel_state_to_color = kToColorComplete;
 				break;
 			case kOffTargetColor:
 				if (confidence > kMinColorConfidence && matchedColor == spin_to_color) {
@@ -450,7 +485,11 @@ public:
 					m_control_spinner.Set(kControlPanelSpeed);
 				}
 				break;
+			case kToColorComplete:
+				m_control_spinner.Set(0.0);
+				m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner here
 		}
+		frc::SmartDashboard::PutString ("Spun to", ColorToString(matchedColor));
 	}
 
 	void AutoIntakeBalls() {
@@ -518,6 +557,7 @@ public:
 		double robot_rel_Y = -m_stick->GetRawAxis(1);
 		double field_rel_X = m_stick->GetRawAxis(2);  // field relative
 		double field_rel_Y = -m_stick->GetRawAxis(3);
+		double field_rel_R = sqrt(field_rel_X*field_rel_X + field_rel_Y*field_rel_Y);
 		bool rotateToAngle = false;
 		if ( m_stick->GetPOV() == 0) {
 			m_pidController->SetSetpoint(0.0f);
@@ -539,18 +579,19 @@ public:
 		frc::Color spin_to_color = kNoColor;
 		if (m_stick->GetRawButton(5)) { // spin to color
 			if (m_stick->GetRawButton(1)) { // blue
-				spin_to_color = kBlueTarget; // these will have to be shifted
+				spin_to_color = kRedTarget; // blue
 				spin_to_color_pressed = true;
 			} else if (m_stick->GetRawButton(2)) { // green
+				spin_to_color = kYellowTarget; 
+				spin_to_color_pressed = true;
+			}else if (m_stick->GetRawButton(3)) { // red
 				spin_to_color = kBlueTarget; 
 				spin_to_color_pressed = true;
-			}if (m_stick->GetRawButton(3)) { // red
-				spin_to_color = kBlueTarget; 
-				spin_to_color_pressed = true;
-			}if (m_stick->GetRawButton(4)) { // yellow
-				spin_to_color = kBlueTarget; 
+			}else if (m_stick->GetRawButton(4)) { // yellow
+				spin_to_color = kGreenTarget; 
 				spin_to_color_pressed = true;
 			}
+			frc::SmartDashboard::PutString ("Spin to", ColorToString(spin_to_color));
 		}
 		bool deploy_hanger_pressed = false;
 		if (m_stick->GetRawButton(6) && m_stick->GetRawButton(8)) {
@@ -615,8 +656,6 @@ public:
 		/********************************************** move stuff ********************************************/
 
 		//m_turret->Set(ControlMode::PercentOutput, shooter_Y);  // temporary test
-
-
 		
 		// reset gyro angle
 		if ( reset_yaw_button_pressed ) {
@@ -650,24 +689,27 @@ public:
 		// trim the speed so it's not too fast
 		rotateToAngleRate = TrimSpeed(rotateToAngleRate, kMaxRotateRate);
 
+
 		// if (slow_gear_button_pressed) {speed_factor = kSlowSpeedFactor;}
 		if (high_gear_button_presssed) {speed_factor = kFastSpeedFactor;}
 		else {speed_factor = kSlowSpeedFactor;}
-		//frc::SmartDashboard::PutNumber ("Drive Speed Factor", speed_factor);
+		frc::SmartDashboard::PutNumber ("Rotate ratio", abs(kMaxRotateRate - abs(rotateToAngleRate)) / kMaxRotateRate);
 
 		try {
-
 			if (rotateToAngle) {
 				// MJS: since it's diff drive instead of mecanum drive, use tank method for rotation
 				//frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
-				m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
-				// } else if (stepOver) {
-				//   frc::SmartDashboard::PutNumber("rotateToAngleRate", rotateToAngleRate);
-				//   if (m_pidController->AtSetpoint()) {
-				//     m_robotDrive.TankDrive(MaxRotateRate, MaxRotateRate, false); // drive forward
-				//   } else {
-				//     m_robotDrive.TankDrive(rotateToAngleRate, -rotateToAngleRate, false);
-				//   }
+				double left_power = rotateToAngleRate;
+				double right_power = -rotateToAngleRate;
+				if (abs(kMaxRotateRate - abs(rotateToAngleRate)) / kMaxRotateRate > 0.7) { 
+					// add forard driving to rotation, to get field relative driving
+					double addition = field_rel_R * speed_factor;
+					left_power += addition;
+					right_power += addition;
+				}
+				m_robotDrive.TankDrive(left_power, right_power, false);
+				frc::SmartDashboard::PutNumber ("Left power", left_power);
+				frc::SmartDashboard::PutNumber ("Right power", right_power);
 			} else {
 				// not rotating; drive by stick
 				m_robotDrive.ArcadeDrive(ScaleSpeed(robot_rel_Y, speed_factor), ScaleSpeed(robot_rel_X, speed_factor));
@@ -753,14 +795,16 @@ public:
 		}
 		// operate control panel
 		if (spin_control_panel_button) {
+			m_need_to_reset_spinner = true;
 			SpinThreeTimes();
-		}
-		if (spin_to_color_pressed) {
+		} else if (spin_to_color_pressed) {
+			m_need_to_reset_spinner = true;
 			SpinToColor(spin_to_color);
-		}
-		else {
+		} else if (m_need_to_reset_spinner) {
 			ResetSpinner();
+			m_need_to_reset_spinner = false;
 		}
+		frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
 		
 	}
 
