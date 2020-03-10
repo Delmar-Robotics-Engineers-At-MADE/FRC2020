@@ -39,12 +39,12 @@ using namespace frc;
 	const static double kSlowSpeedFactor = 0.6;
 	const static double kFastSpeedFactor = 8.0;
 	const static double kMinTargetAreaPercent = 0.1;
-	const static double kConveyerSpeed = 0.5;
-	const static double kIntakeSpeed = 0.5;
+	const static double kConveyerSpeed = 0.66;
+	const static double kIntakeSpeed = 0.7;
 	const static double kIdleShooterSpeed = 6000;
 	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
 	const static double kMinColorConfidence = 0.85;
-	const static double kControlPanelSpeed = 0.5;
+	const static double kControlPanelSpeed = 0.15;
 
 	/* stock color set
 	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
@@ -117,7 +117,7 @@ class Robot: public TimedRobot {
 
 	// sensors
 	AHRS *ahrs;
-	frc::DigitalInput eye_collector{0}; // photo eye at collector
+	frc::DigitalInput eye_intake{0}; // photo eye at collector
 	frc::DigitalInput eye_turret{1}; // photo eye at turret
 	frc::DigitalInput hall_effect{2}; // hall effect sensor on turret
 	static constexpr auto i2cPort = frc::I2C::Port::kOnboard;
@@ -130,8 +130,7 @@ class Robot: public TimedRobot {
 		kOffStartingColor,
 		kOnStartingColor
 	};
-	int m_wheel_state = kUnknownState;
-	int m_wheel_state_to_color = kOffTargetColor;
+	RotateStates m_wheel_state = kUnknownState;
 	frc::Color m_starting_color = kNoColor;
 	int m_half_rotation_count = 0;
 	// state machine for spinning to color
@@ -139,6 +138,17 @@ class Robot: public TimedRobot {
 		kOffTargetColor = 0,
 		kOnTargetColor
 	};
+	RotateToColorStates m_wheel_state_to_color = kOffTargetColor;
+
+	// state machine for intake
+	enum IntakeStates {
+		kBallJustArrived = 0, 
+		kBallInBreach,
+		kBallJustLeft,
+		kBreachEmpty
+	};
+	IntakeStates m_intake_state = kBreachEmpty;
+
 	// pid and timer
     frc2::PIDController *m_pidController;
     frc::Timer m_timer;
@@ -299,6 +309,7 @@ public:
 		m_wheel_state = kUnknownState;
 		m_starting_color = kNoColor;
 		m_half_rotation_count = 0;
+		m_intake_state = kBreachEmpty;
 		
 		kP = kPtuned;
 		kI = kItuned;
@@ -350,13 +361,39 @@ public:
 		// 	}
 		// } // while timer
 		m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
+
+		// position ponytail up
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward);
+	}
+
+	std::string ColorToString (frc::Color color) {
+		std::string result;
+		if (color == kBlueTarget) {
+			result = "Blue";
+		} else if (color == kRedTarget) {
+			result = "Red";
+		} else if (color == kGreenTarget) {
+			result = "Green";
+		} else if (color == kYellowTarget) {
+			result = "Yellow";
+		} else {
+			result = "Unknown";
+		}	
+		return result;
+	}
+
+	void ResetSpinner() {
+		m_wheel_state = kUnknownState;
+		m_wheel_state_to_color = kOffTargetColor;
+		m_control_spinner.Set(0.0);
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward);
 	}
 
 	void SpinThreeTimes() {
 		std::string colorString;
 		double confidence = 0.0;
 
-		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // lower spinner here
+		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 		
 		frc::Color detectedColor = m_colorSensor.GetColor();
 		frc::Color matchedColor = m_colorMatcher.MatchClosestColor(detectedColor, confidence);
@@ -384,6 +421,9 @@ public:
 			}
 			break;
 		}
+		frc::SmartDashboard::PutString("color", ColorToString(matchedColor));
+		frc::SmartDashboard::PutNumber("confidence", confidence);
+		frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
 	}
 
 	void SpinToColor(frc::Color spin_to_color) {
@@ -409,6 +449,45 @@ public:
 				}
 				break;
 		}
+	}
+
+	void AutoIntakeBalls() {
+		if (eye_turret.Get()) { // there's a ball under the turret; no more collecting until that's gone
+			m_intake.Set(0.0);
+			m_vert_conveyer.Set(0.0);
+		} else { // turret on-deck empty; ok to intake
+			m_vert_conveyer.Set(-kConveyerSpeed);
+			frc::SmartDashboard::PutNumber("intake state", m_intake_state);
+			switch (m_intake_state) {
+				case kBallJustArrived:
+					m_timer.Reset();
+					m_timer.Start();
+					m_intake_state = kBallInBreach;
+					break;
+				case kBallInBreach: // run long enough to get ball into conveyer, then stop intake
+					if (m_timer.Get() < 1) {
+						m_intake.Set(-kIntakeSpeed);
+					} else {
+						m_intake_state = kBallJustLeft;
+						m_intake.Set(-0.0);
+					}
+					break;
+				case kBallJustLeft:  //  keep conveyer stopped for a period to create space
+					if (m_timer.Get() < 2) {
+						m_intake.Set(-0.0);
+					} else { // ok to run conveyer now
+						m_intake_state = kBreachEmpty;
+					}
+					break;
+				case kBreachEmpty:
+					if (eye_intake.Get()) { // a ball just arrived at breach
+						m_intake_state = kBallJustArrived;
+					} else { // no balls yet
+						m_intake.Set(-kIntakeSpeed);
+						m_vert_conveyer.Set(-kConveyerSpeed);
+					}
+			} // switch
+		} // if turret is not on-deck
 	}
 
 	void TeleopPeriodic() {
@@ -535,11 +614,7 @@ public:
 
 		//m_turret->Set(ControlMode::PercentOutput, shooter_Y);  // temporary test
 
-		if (auto_intake_button) {
-			// bring balls in and index using photo eye
-		} else { // enable manual control of intake
-			m_intake.Set(-intake_Y * kIntakeSpeed);
-		}
+
 		
 		// reset gyro angle
 		if ( reset_yaw_button_pressed ) {
@@ -658,24 +733,31 @@ public:
 				conveyer_speed = -kConveyerSpeed;
 			} else if (conveyer_out_button) {
 				conveyer_speed = kConveyerSpeed;
+			} else { // no conveyer input
+				conveyer_speed = 0.0;
 			}
 		}
 		
-		m_vert_conveyer.Set(conveyer_speed);
+		
 		frc::SmartDashboard::PutNumber("shoot speed 2", shooter_speed_in_units);
 		frc::SmartDashboard::PutNumber("conveyer speed", conveyer_speed);
-		
 
-		// test digital sensors
-		bool eye_value = eye_collector.Get();
-		//frc::SmartDashboard::PutNumber("Eye", eye_value);
-
+		if (auto_intake_button) {
+			// bring balls in and index using photo eye
+			AutoIntakeBalls();
+		} else { // enable manual control of intake
+			m_intake.Set(-intake_Y * kIntakeSpeed);
+			m_vert_conveyer.Set(conveyer_speed);
+		}
 		// operate control panel
 		if (spin_control_panel_button) {
 			SpinThreeTimes();
 		}
 		if (spin_to_color_pressed) {
 			SpinToColor(spin_to_color);
+		}
+		else {
+			ResetSpinner();
 		}
 		
 	}
