@@ -45,6 +45,8 @@ using namespace frc;
 	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
 	const static double kMinColorConfidence = 0.85;
 	const static double kControlPanelSpeed = 0.15;
+	const static double kIntakeDelayArrival = 1;
+	const static double kIntakeDelayGap = 0.05;
 
 	/* stock color set
 	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
@@ -465,7 +467,7 @@ public:
 					m_intake_state = kBallInBreach;
 					break;
 				case kBallInBreach: // run long enough to get ball into conveyer, then stop intake
-					if (m_timer.Get() < 1) {
+					if (m_timer.Get() < kIntakeDelayArrival) {
 						m_intake.Set(-kIntakeSpeed);
 					} else {
 						m_intake_state = kBallJustLeft;
@@ -473,7 +475,7 @@ public:
 					}
 					break;
 				case kBallJustLeft:  //  keep conveyer stopped for a period to create space
-					if (m_timer.Get() < 2) {
+					if (m_timer.Get() < kIntakeDelayArrival + kIntakeDelayGap) {
 						m_intake.Set(-0.0);
 					} else { // ok to run conveyer now
 						m_intake_state = kBreachEmpty;
