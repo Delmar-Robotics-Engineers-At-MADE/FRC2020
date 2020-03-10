@@ -462,7 +462,6 @@ public:
 		m_wheel_state_to_color = kOffTargetColor;
 		m_control_spinner.Set(0.0);
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
-		frc::SmartDashboard::PutString("reset", "happened");
 	}
 
 	void SpinThreeTimes() {
@@ -499,6 +498,7 @@ public:
 		case kCompletedRotations:
 			m_control_spinner.Set(0.0); // stop
 			m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
+			frc::SmartDashboard::PutNumber("CP COMPLETE", true);
 			break;
 		}
 		frc::SmartDashboard::PutString("color", ColorToString(matchedColor));
@@ -531,6 +531,8 @@ public:
 			case kToColorComplete:
 				m_control_spinner.Set(0.0);
 				m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner here
+				frc::SmartDashboard::PutNumber("CP COMPLETE", true);
+				break;
 		}
 		frc::SmartDashboard::PutString ("Spun to", ColorToString(matchedColor));
 	}
@@ -689,11 +691,6 @@ public:
 		bool conveyer_in_button =  m_stick_copilot->GetRawButton(6);
 		bool conveyer_out_button =  m_stick_copilot->GetRawButton(8);
 
-
-		//frc::SmartDashboard::PutNumber("Angle", ahrs->GetAngle());
-		//frc::SmartDashboard::PutNumber("Shooter Magnitude", shooter_R);
-
-
 		/****************************************** limelight *****************************************************/
 
 
@@ -702,15 +699,15 @@ public:
 
 		double targetOffsetAngle_Vertical = 0.0;
 		if (targetSeen != 0.0) {
-		  frc::SmartDashboard::PutNumber("Targ Area", targetArea);
+		  // frc::SmartDashboard::PutNumber("Targ Area", targetArea);
 		  if (targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
 			//double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
 			targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
 			//double targetSkew = m_limetable->GetNumber("ts",0.0);
 			double targetWidth = m_limetable->GetNumber("tlong",0.0);
 
-			frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
-			frc::SmartDashboard::PutNumber("Targ Vert", targetOffsetAngle_Vertical);
+			// frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
+			// frc::SmartDashboard::PutNumber("Targ Vert", targetOffsetAngle_Vertical);
 		  }
 		}
 
@@ -810,17 +807,13 @@ public:
 		}
 		frc::SmartDashboard::PutNumber("targetSeen", targetSeen);
 		if (targetSeen != 0.0 && auto_shoot_button) {
-			frc::SmartDashboard::PutNumber("Seen", true);
-			/* for tuning shooter
-			shooter_speed_in_units = frc::SmartDashboard::GetNumber("shoot speed", 0.0);
-			*/
-		
+
 			if (targetOffsetAngle_Vertical < -18) {
-				shooter_speed_in_units = 23000;
+				shooter_speed_in_units = 23000;  // max out shooter if far away
 			} else {
 				shooter_speed_in_units = 12696.1 - 317.502 * targetOffsetAngle_Vertical;
 			}
-			frc::SmartDashboard::PutNumber("shoot speed 1", shooter_speed_in_units);
+			frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
 
 			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
 			double shooter_speed_error = m_shooter_star->GetClosedLoopError();
@@ -829,9 +822,7 @@ public:
 				// auto feed balls into shooter
 				conveyer_speed = -kConveyerSpeed;
 			} 
-			//if (m_shooter_star->GetClosedLoopError < kShooterSpeedTolerance)
 		} else { // no target; permit manual control
-			frc::SmartDashboard::PutNumber("Seen", false);
 			shooter_speed_in_units = kIdleShooterSpeed;
 			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
 			if (conveyer_in_button) {
@@ -842,10 +833,6 @@ public:
 				conveyer_speed = 0.0;
 			}
 		}
-		
-		
-		frc::SmartDashboard::PutNumber("shoot speed 2", shooter_speed_in_units);
-		frc::SmartDashboard::PutNumber("conveyer speed", conveyer_speed);
 
 		if (auto_intake_button) {
 			// bring balls in and index using photo eye
