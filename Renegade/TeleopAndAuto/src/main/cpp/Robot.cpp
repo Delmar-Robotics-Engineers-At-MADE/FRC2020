@@ -58,7 +58,7 @@ using namespace frc;
 	const static long kTurretTolerance = 500; // in encoder counts
 	const static long kTurretLimitPort = 15000;
 	const static long kTurretLimitStarboard = -15000;
-	const static long kTurretUP = 0;
+	const static long kTurretUP = 1;  // basicaly zero, but needs to be non-zero
 	const static long kTurretRIGHT = 7000;
 	const static long kTurretDOWN = 10000;
 	const static long kTurretLEFT = -7000;
@@ -376,11 +376,18 @@ public:
 		turret_on_hall = !hall_effect.Get();
 		if (!turret_on_hall) {
 			// we didn't land on Hall sensor, go back the other way looking for it
-			//targetPositionRotations = -1500; // positive moves turret clockwise
-			//m_turret->Set(ControlMode::Position, targetPositionRotations);
+			m_turret->Set(ControlMode::Position, -2 * kMaxTurretInitialSeek);
+			m_timer.Reset(); m_timer.Start(); while (m_timer.Get() < 5) {
+				turret_on_hall = !hall_effect.Get();
+				if (turret_on_hall) { 
+					m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
+					frc::SmartDashboard::PutString("turr state", "found hall");
+					break; // exit loop
+				}
+				Wait(0.1);
+			} // while		
 		}
 		m_turret->SetSelectedSensorPosition(0, kPIDLoopIdx, kTimeoutMs);  // set zero position now
-
 	}
 
 	void TrackTargetWithRobot(double targetOffsetAngle) {
@@ -605,7 +612,8 @@ public:
 			}
 	}
 
-	void OperateShooterAndConveyer(bool &manual_conveyer_ok, double &conveyer_speed) {
+	void OperateShooterAndConveyer(bool &manual_conveyer_ok, double &conveyer_speed,
+		bool manual_boost, bool manual_deboost) {
 
 		double targetSeen = m_limetable->GetNumber("tv",0.0);
 		double targetArea = m_limetable->GetNumber("ta",0.0);
@@ -655,6 +663,8 @@ public:
 			} else {
 				shooter_speed_in_units = 12696.1 - m_shooter_slope * targetOffsetAngle_Vertical; // originally 317.502
 			}
+			if (manual_boost) {shooter_speed_in_units *= 1.1;}
+			else if (manual_deboost) {shooter_speed_in_units *= 0.9;}
 			frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
 			double shooter_speed_error = m_shooter_star->GetClosedLoopError();
 			frc::SmartDashboard::PutNumber("shooter err", shooter_speed_error);
@@ -871,7 +881,8 @@ public:
 		
 		if (auto_shoot_button) {
 			m_limetable->PutNumber("ledMode",3.0); // LED on
-			OperateShooterAndConveyer(manual_conveyer_ok, conveyer_speed);
+			OperateShooterAndConveyer(manual_conveyer_ok, conveyer_speed, 
+			    boost_shooter_up_button, boost_shooter_down_button);
 		} else {
 			m_limetable->PutNumber("ledMode",1.0); // LED off
 			m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
@@ -900,7 +911,7 @@ public:
 		}
 		frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
 		
-		if (turret_manual_position > 0) {
+		if (turret_manual_position != 0) {
 			m_need_to_reset_manual_turret_move = true;
 			MoveTurretToManualPosition(turret_manual_position);
 		} else if (m_need_to_reset_manual_turret_move) {
