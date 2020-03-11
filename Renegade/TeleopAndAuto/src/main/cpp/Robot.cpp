@@ -34,7 +34,7 @@ using namespace frc;
     const static int k_joystick_copilot = 1;
 	
 	const static double kToleranceDegrees = 2.0f;
-	const static double kMaxRotateRate = 0.5;
+	const static double kMaxRotateRate = 1.0;
 	const static double kGamepadDeadZone = 0.15;
 	const static double kSlowSpeedFactor = 0.7;
 	const static double kFastSpeedFactor = 0.9;
@@ -79,9 +79,9 @@ using namespace frc;
 	static constexpr frc::Color kYellowTarget = frc::Color(0.330, 0.525, 0.145);
 	static constexpr frc::Color kNoColor = frc::Color(0,0,0);
 	
-	const static double kPtunedGyro = 0.006;
-	const static double kItunedGyro = 0.0015;
-	const static double kDtunedGyro = 0.001;
+	const static double kPtunedGyro = 0.05;
+	const static double kItunedGyro = 0.0;
+	const static double kDtunedGyro = 0.0;
 	const static double kPturret = 0.01;
 	const static double kIturret = 0.003;
 	const static double kDturret = 0.0;
@@ -223,6 +223,44 @@ class Robot: public TimedRobot {
 public:
 
 	void RobotInit() {
+
+		/*************** drive motor setup ***********************/
+
+		m_leftfront.ConfigFactoryDefault();
+		m_leftrear.ConfigFactoryDefault();
+		m_rightfront.ConfigFactoryDefault();
+		m_rightrear.ConfigFactoryDefault();
+
+		// breaking mode
+		m_leftfront.SetNeutralMode(NeutralMode::Brake);
+		m_leftrear.SetNeutralMode(NeutralMode::Brake);
+		m_rightfront.SetNeutralMode(NeutralMode::Brake);
+		m_rightrear.SetNeutralMode(NeutralMode::Brake);
+
+        /* feedback sensor */
+		m_leftfront.ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, kTimeoutMs);
+		m_rightfront.ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, kTimeoutMs);
+		// phase for TalonFX integrated sensor is automatically correct
+
+		/* set the peak and nominal outputs */
+		m_leftfront.ConfigNominalOutputForward(0, kTimeoutMs);
+		m_leftfront.ConfigNominalOutputReverse(0, kTimeoutMs);
+		m_leftfront.ConfigPeakOutputForward(1, kTimeoutMs);
+		m_leftfront.ConfigPeakOutputReverse(-1, kTimeoutMs);
+		m_rightfront.ConfigNominalOutputForward(0, kTimeoutMs);
+		m_rightfront.ConfigNominalOutputReverse(0, kTimeoutMs);
+		m_rightfront.ConfigPeakOutputForward(1, kTimeoutMs);
+		m_rightfront.ConfigPeakOutputReverse(-1, kTimeoutMs);
+
+		/* set closed loop gains in slot0 */
+		m_leftfront.Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_leftfront.Config_kP(kPIDLoopIdx, 0.1, kTimeoutMs);
+		m_leftfront.Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_leftfront.Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_rightfront.Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_rightfront.Config_kP(kPIDLoopIdx, 0.1, kTimeoutMs);
+		m_rightfront.Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
+		m_rightfront.Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
 
 		/*************** shooter setup ***********************/
 
@@ -469,10 +507,11 @@ public:
 			double I_gyro = kItunedGyro;
 			double D_gyro = kDtunedGyro;
 			/* used to tune PID numbers 
-			double P = frc::SmartDashboard::GetNumber("kP", kPturret);
-			double I = frc::SmartDashboard::GetNumber("kI", kIturret);
-			double D = frc::SmartDashboard::GetNumber("kD", kDturret);
+			double P = frc::SmartDashboard::GetNumber("kP", P_gyro);
+			double I = frc::SmartDashboard::GetNumber("kI", I_gyro);
+			double D = frc::SmartDashboard::GetNumber("kD", D_gyro);
 			*/
+			
 			
 			// PIDs
 			m_pidController_gyro = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
