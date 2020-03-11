@@ -39,6 +39,7 @@ using namespace frc;
 	const static double kSlowSpeedFactor = 0.7;
 	const static double kFastSpeedFactor = 0.9;
 	const static double kMinTargetAreaPercent = 0.1;
+	const static double kDriveAgainstCPSpeed = 0.2;
 
 	const static double kConveyerSpeed = 0.75;
 	const static double kIntakeSpeed = 0.7;
@@ -192,9 +193,9 @@ class Robot: public TimedRobot {
     double rotateToAngleRate;           // Current rotation rate
     double speed_factor = 0.5;
 	frc::SendableChooser<std::string> m_chooser;
-	frc::SendableChooser<std::string> m_chooser_options_1;
-	frc::SendableChooser<std::string> m_chooser_options_2;
-	frc::SendableChooser<std::string> m_chooser_options_3;
+	frc::SendableChooser<std::string> m_chooser_options_dir;
+	frc::SendableChooser<std::string> m_chooser_options_speed;
+	frc::SendableChooser<std::string> m_chooser_options_wait;
 	const std::string kAutoNameTestWheels = "Move Wheels";
 	const std::string kAutoNameJustInit = "Just Initialize";
 	const std::string kAutoNameShootAndMove = "Shoot/Move";
@@ -206,9 +207,9 @@ class Robot: public TimedRobot {
 	const std::string kAutoOptionWait = "Wait";
 	const std::string kAutoOptionNoWait = "No wait";
 	std::string m_autoSelected;
-	std::string m_autoSelected_options_1;
-	std::string m_autoSelected_options_2;
-	std::string m_autoSelected_options_3;
+	std::string m_autoSelected_options_dir;
+	std::string m_autoSelected_options_speed;
+	std::string m_autoSelected_options_wait;
 	bool m_do_once_inited = false;
 
 	double TrimSpeed (double s, double max) {
@@ -370,12 +371,13 @@ public:
 			DriverStation::ReportError(p_err_msg);
 		}
 
-		/* this is used to tune the PID numbers with shuffleboard */
+		/* this is used to tune the PID numbers with shuffleboard
 		frc::SmartDashboard::PutNumber("kP", kPturret);
 		frc::SmartDashboard::PutNumber("kI", kIturret);
 		frc::SmartDashboard::PutNumber("kD", kDturret);
+		*/
+		frc::SmartDashboard::PutNumber("shoot slope", kInitialShooterSlope);
 		
-
 		// control panel colors
 		m_colorMatcher.AddColorMatch(kBlueTarget);
 		m_colorMatcher.AddColorMatch(kGreenTarget);
@@ -390,19 +392,17 @@ public:
 		m_chooser.SetDefaultOption(kAutoNameShootAndMove, kAutoNameShootAndMove);
 		m_chooser.AddOption(kAutoNameJustInit, kAutoNameJustInit);
 		m_chooser.AddOption(kAutoNameTestWheels, kAutoNameTestWheels);
-		m_chooser_options_1.SetDefaultOption(kAutoOptionForward,kAutoOptionForward);
-		m_chooser_options_1.AddOption(kAutoOptionBackward, kAutoOptionBackward);
-		m_chooser_options_1.AddOption(kAutoOptionNoMove, kAutoOptionNoMove);
-		m_chooser_options_2.SetDefaultOption(kAutoOptionSlow,kAutoOptionSlow);
-		m_chooser_options_2.AddOption(kAutoOptionFast, kAutoOptionFast);
-		m_chooser_options_3.AddOption(kAutoOptionWait, kAutoOptionWait);
-		m_chooser_options_3.AddOption(kAutoOptionNoWait, kAutoOptionNoWait);
+		m_chooser_options_dir.SetDefaultOption(kAutoOptionForward,kAutoOptionForward);
+		m_chooser_options_dir.AddOption(kAutoOptionBackward, kAutoOptionBackward);
+		m_chooser_options_dir.AddOption(kAutoOptionNoMove, kAutoOptionNoMove);
+		m_chooser_options_speed.SetDefaultOption(kAutoOptionSlow,kAutoOptionSlow);
+		m_chooser_options_speed.AddOption(kAutoOptionFast, kAutoOptionFast);
+		m_chooser_options_wait.AddOption(kAutoOptionWait, kAutoOptionWait);
+		m_chooser_options_wait.AddOption(kAutoOptionNoWait, kAutoOptionNoWait);
 		frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
-		frc::SmartDashboard::PutData("Auto Move?", &m_chooser_options_1);
-		frc::SmartDashboard::PutData("Auto Fast?", &m_chooser_options_2);
-		frc::SmartDashboard::PutData("Auto Wait?", &m_chooser_options_3);
-
-				frc::SmartDashboard::PutNumber("shoot slope", kInitialShooterSlope);
+		frc::SmartDashboard::PutData("Auto Move?", &m_chooser_options_dir);
+		frc::SmartDashboard::PutData("Auto Fast?", &m_chooser_options_speed);
+		frc::SmartDashboard::PutData("Auto Wait?", &m_chooser_options_wait);
 	}
 
 	void MoveTurretToManualPosition (long target_position) {
@@ -415,7 +415,7 @@ public:
 	void MoveTurretToStartingPosition() {
 
 		bool turret_on_hall = false;
-		frc::SmartDashboard::PutString("turr state", "initial move");
+		// frc::SmartDashboard::PutString("turr state", "initial move");
 
 		// code from WPI to set starting position
 		// int absolutePosition = m_turret->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
@@ -435,13 +435,13 @@ public:
 			turret_on_hall = !hall_effect.Get();
 			if (turret_on_hall) { 
 				m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
-				frc::SmartDashboard::PutString("turr state", "found hall");
+				// frc::SmartDashboard::PutString("turr state", "found hall");
 				break; // exit loop
 			}
 			Wait(0.1);
 		} // while
 		m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
-		frc::SmartDashboard::PutString("turr state", "while done");
+		// frc::SmartDashboard::PutString("turr state", "while done");
 
 		turret_on_hall = !hall_effect.Get();
 		if (!turret_on_hall) {
@@ -451,7 +451,7 @@ public:
 				turret_on_hall = !hall_effect.Get();
 				if (turret_on_hall) { 
 					m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
-					frc::SmartDashboard::PutString("turr state", "found hall");
+					// frc::SmartDashboard::PutString("turr state", "found hall");
 					break; // exit loop
 				}
 				Wait(0.1);
@@ -478,11 +478,11 @@ public:
 		targetOffsetAngle = -targetOffsetAngle; 
 		double current_pos = m_turret->GetSelectedSensorPosition(0);
 		if (current_pos > kTurretLimitStarboard && current_pos < kTurretLimitPort) {
-			frc::SmartDashboard::PutString("turr tracking", "safe");
+			// frc::SmartDashboard::PutString("turr tracking", "safe");
 			m_pidController_limelight_turret->SetSetpoint(0);
 			double new_speed = m_pidController_limelight_turret->Calculate(targetOffsetAngle);
-			frc::SmartDashboard::PutNumber("turr speed", new_speed);
-			frc::SmartDashboard::PutNumber("off ang", targetOffsetAngle);
+			// frc::SmartDashboard::PutNumber("turr speed", new_speed);
+			// frc::SmartDashboard::PutNumber("off ang", targetOffsetAngle);
 
 			// move turret
 			m_turret->Set(ControlMode::PercentOutput, new_speed);
@@ -491,7 +491,7 @@ public:
 
 			// hold position; don't reset when on target
 		} else {
-			frc::SmartDashboard::PutString("turr tracking", "unsafe");
+			// frc::SmartDashboard::PutString("turr tracking", "unsafe");
 			m_turret->Set(ControlMode::PercentOutput, 0);
 		}
 		return result;
@@ -563,6 +563,7 @@ public:
 	}
 
 	void ResetSpinner() {
+		m_robotDrive.TankDrive(0, 0); // stop pressing into CP
 		m_wheel_state = kUnknownState;
 		m_wheel_state_to_color = kOffTargetColor;
 		m_control_spinner.Set(0.0);
@@ -572,7 +573,9 @@ public:
 	void SpinThreeTimes() {
 		std::string colorString;
 		double confidence = 0.0;
+		frc::SmartDashboard::PutNumber("CP COMPLETE", false);
 
+		m_robotDrive.TankDrive(kDriveAgainstCPSpeed, kDriveAgainstCPSpeed); // press against control panel
 		MoveTurretToManualPosition(kTurretUP); // hold turret in position
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 		
@@ -615,7 +618,9 @@ public:
 	void SpinToColor(frc::Color spin_to_color) {
 		std::string colorString;
 		double confidence = 0.0;
+		frc::SmartDashboard::PutNumber("CP COMPLETE", false);
 
+		m_robotDrive.TankDrive(kDriveAgainstCPSpeed, kDriveAgainstCPSpeed); // press against control panel
 		MoveTurretToManualPosition(kTurretUP); // hold turret in position
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 
@@ -641,7 +646,7 @@ public:
 				frc::SmartDashboard::PutNumber("CP COMPLETE", true);
 				break;
 		}
-		frc::SmartDashboard::PutString ("Spun to", ColorToString(matchedColor));
+		// frc::SmartDashboard::PutString ("Spun to", ColorToString(matchedColor));
 	}
 
 	void AutoIntakeBalls() {
@@ -650,7 +655,7 @@ public:
 			m_vert_conveyer.Set(0.0);
 		} else { // turret on-deck empty; ok to intake
 			m_vert_conveyer.Set(-kConveyerSpeed);
-			frc::SmartDashboard::PutNumber("intake state", m_intake_state);
+			// frc::SmartDashboard::PutNumber("intake state", m_intake_state);
 			switch (m_intake_state) {
 				case kBallJustArrived:
 					m_timer.Reset();
@@ -684,7 +689,7 @@ public:
 	}
 
 	void OperateConveyer (bool conveyer_in_button, bool conveyer_out_button, double &conveyer_speed) {
-			frc::SmartDashboard::PutNumber("conv man ok", true);
+			// frc::SmartDashboard::PutNumber("conv man ok", true);
 			if (conveyer_in_button) {
 				conveyer_speed = -kConveyerSpeed;
 			} else if (conveyer_out_button) {
@@ -712,7 +717,7 @@ public:
 
 		double shooter_speed_in_units = kIdleShooterSpeed;
 		if (targetSeen != 0.0) {
-			frc::SmartDashboard::PutString("turr mode", "tracking");
+			// frc::SmartDashboard::PutString("turr mode", "tracking");
 			bool limelight_on_target = TrackTargetWithTurret(targetOffsetAngle_Horizontal);
 
 			if (targetOffsetAngle_Vertical < -18) {
@@ -722,9 +727,9 @@ public:
 			}
 			if (manual_boost) {shooter_speed_in_units *= 1.1;}
 			else if (manual_deboost) {shooter_speed_in_units *= 0.9;}
-			frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
+			// frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
 			double shooter_speed_error = m_shooter_star->GetClosedLoopError();
-			frc::SmartDashboard::PutNumber("shooter err", shooter_speed_error);
+			frc::SmartDashboard::PutNumber("flywheel err", shooter_speed_error);
 			if (shooter_speed_error < kMaxShooterSpeedError && limelight_on_target) {
 				// auto feed balls into shooter
 				conveyer_speed = -kConveyerSpeed;
@@ -734,7 +739,7 @@ public:
 		} else { // no target; permit manual control of conveyer
 			manual_conveyer_ok = true;
 			m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret; needs to hold position
-			frc::SmartDashboard::PutString("turr mode", "stopped");
+			// frc::SmartDashboard::PutString("turr mode", "stopped");
 		}
 		m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
 
@@ -744,7 +749,7 @@ public:
 		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
 		//m_turret->Set(ControlMode::Position, targetPositionRotations); 
 
-		frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
+		// frc::SmartDashboard::PutNumber("turret pos", m_turret->GetSelectedSensorPosition(0));
 
 		/****************************************** buttons and joysticks **************************************/
 
@@ -800,7 +805,7 @@ public:
 				spin_to_color = kGreenTarget; 
 				spin_to_color_pressed = true;
 			}
-			frc::SmartDashboard::PutString ("Spin to", ColorToString(spin_to_color));
+			// frc::SmartDashboard::PutString ("Spin to", ColorToString(spin_to_color));
 		} else { // color buttons have normal functions
 			reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
 			hang_button = m_stick->GetRawButton(2);
@@ -900,7 +905,7 @@ public:
 		// if (slow_gear_button_pressed) {speed_factor = kSlowSpeedFactor;}
 		if (high_gear_button_presssed) {speed_factor = kFastSpeedFactor;}
 		else {speed_factor = kSlowSpeedFactor;}
-		frc::SmartDashboard::PutNumber ("Rotate ratio", abs(kMaxRotateRate - abs(rotateToAngleRate)) / kMaxRotateRate);
+		// frc::SmartDashboard::PutNumber ("Rotate ratio", abs(kMaxRotateRate - abs(rotateToAngleRate)) / kMaxRotateRate);
 
 		try {
 			if (rotateToAngle) {
@@ -915,8 +920,8 @@ public:
 					right_power += addition;
 				}
 				m_robotDrive.TankDrive(left_power, right_power, false);
-				frc::SmartDashboard::PutNumber ("Left power", left_power);
-				frc::SmartDashboard::PutNumber ("Right power", right_power);
+				// frc::SmartDashboard::PutNumber ("Left power", left_power);
+				// frc::SmartDashboard::PutNumber ("Right power", right_power);
 			} else {
 				// not rotating; drive by stick
 				m_robotDrive.ArcadeDrive(ScaleSpeed(robot_rel_Y, speed_factor), ScaleSpeed(robot_rel_X, speed_factor));
@@ -963,7 +968,7 @@ public:
 			ResetSpinner();
 			m_need_to_reset_spinner = false;
 		}
-		frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
+		// frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
 		
 		if (turret_manual_position != 0) {
 			m_need_to_reset_manual_turret_move = true;
@@ -972,19 +977,16 @@ public:
 			m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
 			m_need_to_reset_manual_turret_move = false;
 		}
-		frc::SmartDashboard::PutNumber("turret pos3", m_turret->GetSelectedSensorPosition(0));
+		// frc::SmartDashboard::PutNumber("turret pos3", m_turret->GetSelectedSensorPosition(0));
 	}
 
 	void AutonomousInit() {
-		frc::SmartDashboard::PutString("Auto phase", "init once");
 		DoOnceInit();
-		frc::SmartDashboard::PutString("Auto phase", "init repeat");
 		RepeatableInit();
-		frc::SmartDashboard::PutString("Auto phase", "init done");
 		m_autoSelected = m_chooser.GetSelected();
-		m_autoSelected_options_1 = m_chooser_options_1.GetSelected();
-		m_autoSelected_options_2 = m_chooser_options_2.GetSelected();
-		m_autoSelected_options_3 = m_chooser_options_3.GetSelected();
+		m_autoSelected_options_dir = m_chooser_options_dir.GetSelected();
+		m_autoSelected_options_speed = m_chooser_options_speed.GetSelected();
+		m_autoSelected_options_wait = m_chooser_options_wait.GetSelected();
 		// m_autoSelected = SmartDashboard::GetString("Auto Selector",
 		//     kAutoNameDefault);
 		std::cout << "Auto selected: " << m_autoSelected << std::endl;
@@ -999,7 +1001,6 @@ public:
 	}
 
 	void AutonomousPeriodic() {
-		frc::SmartDashboard::PutString("Auto phase", "periodic");
 		if (m_autoSelected == kAutoNameTestWheels) {
 			// simple motion to validate motor configuration
 			// Drive for 2 seconds
@@ -1015,12 +1016,12 @@ public:
 			m_robotDrive.ArcadeDrive(0.0, 0.0);
 			}
 		} else if (m_autoSelected == kAutoNameShootAndMove) {
-			frc::SmartDashboard::PutString("Auto Mode", "kAutoNameShootAndMove");
-			if (m_autoSelected_options_3 == kAutoOptionWait && m_timer.Get() < 3) {
-				frc::SmartDashboard::PutString("Auto Mode", "waiting");
-				// do nothing for 7 secs		
+			// frc::SmartDashboard::PutString("Auto Mode", "kAutoNameShootAndMove");
+			if (m_autoSelected_options_wait == kAutoOptionWait && m_timer.Get() < 3) {
+				// frc::SmartDashboard::PutString("Auto Mode", "waiting");
+				// do nothing for x secs		
 			} else if (m_timer.Get() < 6) {
-				frc::SmartDashboard::PutString("Auto Mode", "shooting");
+				// frc::SmartDashboard::PutString("Auto Mode", "shooting");
 				bool manual_conveyer_ok; double conveyer_speed;
 				OperateShooter(manual_conveyer_ok, conveyer_speed, false, false);
 				OperateConveyer (false, false, conveyer_speed);
@@ -1028,24 +1029,27 @@ public:
 				m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 				m_vert_conveyer.Set(0);
 				double motor_speed = 0.0;
-				if (m_autoSelected_options_1 == kAutoOptionForward) {
+				if (m_autoSelected_options_dir == kAutoOptionForward) {
 					motor_speed = kAutoDriveSpeed;
-				} else if (m_autoSelected_options_1 == kAutoOptionBackward) {
+				} else if (m_autoSelected_options_dir == kAutoOptionBackward) {
 					motor_speed = -kAutoDriveSpeed;
+				}				
+				if (m_autoSelected_options_speed == kAutoOptionFast) {
+					motor_speed *= 2;
 				}
-				frc::SmartDashboard::PutString("Auto Mode", "should move");
+				// frc::SmartDashboard::PutString("Auto Mode", "should move");
 				if (abs(m_leftfront.GetSelectedSensorPosition(0)) < kAutoDriveDistance) {
 					m_robotDrive.TankDrive(motor_speed, motor_speed);
-					frc::SmartDashboard::PutString("Auto Mode", "moving");
+					// frc::SmartDashboard::PutString("Auto Mode", "moving");
 				} else {
 					m_robotDrive.TankDrive(0, 0);
-					frc::SmartDashboard::PutString("Auto Mode", "done moving");
+					// frc::SmartDashboard::PutString("Auto Mode", "done moving");
 				}
-				frc::SmartDashboard::PutNumber("encoder", m_leftfront.GetSelectedSensorPosition(0));
+				// frc::SmartDashboard::PutNumber("encoder", m_leftfront.GetSelectedSensorPosition(0));
 			}
 		} else {
 			// only doing init
-			frc::SmartDashboard::PutString("Auto Mode", "nothing");
+			// frc::SmartDashboard::PutString("Auto Mode", "nothing");
 		}
 	}
 
