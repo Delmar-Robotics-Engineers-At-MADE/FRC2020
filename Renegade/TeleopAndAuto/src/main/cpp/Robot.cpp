@@ -54,7 +54,7 @@ using namespace frc;
 
 	const static double kTurretSpeedInitial = 0.4;
 	const static double kTurretSpeedMax = 0.6;
-	const static long kMaxTurretInitialSeek = -3000; // in encoder counts
+	const static long kMaxTurretInitialSeek = -4000; // in encoder counts
 	const static long kTurretTolerance = 500; // in encoder counts
 	const static long kTurretLimitPort = 15000;
 	const static long kTurretLimitStarboard = -15000;
@@ -187,18 +187,32 @@ class Robot: public TimedRobot {
     double rotateToAngleRate;           // Current rotation rate
     double speed_factor = 0.5;
 	frc::SendableChooser<std::string> m_chooser;
-	const std::string kAutoNameDefault = "Move Wheels";
-	const std::string kAutoNameCustom = "Just Initialize";
+	frc::SendableChooser<std::string> m_chooser_options_1;
+	frc::SendableChooser<std::string> m_chooser_options_2;
+	frc::SendableChooser<std::string> m_chooser_options_3;
+	const std::string kAutoNameTestWheels = "Move Wheels";
+	const std::string kAutoNameJustInit = "Just Initialize";
+	const std::string kAutoNameShootAndMove = "Shoot/Move";
+	const std::string kAutoOptionForward = "Forward";
+	const std::string kAutoOptionBackward = "Backard";
+	const std::string kAutoOptionFast = "Fast";
+	const std::string kAutoOptionSlow = "Slow";
+	const std::string kAutoOptionWait = "Wait";
+	const std::string kAutoOptionNoWait = "No wait";
 	std::string m_autoSelected;
+	std::string m_autoSelected_options_1;
+	std::string m_autoSelected_options_2;
+	std::string m_autoSelected_options_3;
+	bool m_do_once_inited = false;
 
 	double TrimSpeed (double s, double max) {
-	double result = s > max ? max : s;
-	result = result < -max ? -max : result;
-	return result;
+		double result = s > max ? max : s;
+		result = result < -max ? -max : result;
+		return result;
 	}
 
 	double ScaleSpeed (double s, double scale) {
-	return s * scale;
+		return s * scale;
 	}
 
 	double ConvertRadsToDegrees (double rads) {
@@ -328,9 +342,19 @@ public:
 		rotateToAngleRate = 0.0f;
 		m_robotDrive.SetExpiration(0.1);
 
-		m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
-		m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
+		m_chooser.SetDefaultOption(kAutoNameShootAndMove, kAutoNameShootAndMove);
+		m_chooser.AddOption(kAutoNameJustInit, kAutoNameJustInit);
+		m_chooser.AddOption(kAutoNameTestWheels, kAutoNameTestWheels);
+		m_chooser_options_1.SetDefaultOption(kAutoOptionForward,kAutoOptionForward);
+		m_chooser_options_1.AddOption(kAutoOptionBackward, kAutoOptionBackward);
+		m_chooser_options_2.SetDefaultOption(kAutoOptionSlow,kAutoOptionSlow);
+		m_chooser_options_2.AddOption(kAutoOptionFast, kAutoOptionFast);
+		m_chooser_options_3.AddOption(kAutoOptionWait, kAutoOptionWait);
+		m_chooser_options_3.AddOption(kAutoOptionNoWait, kAutoOptionNoWait);
 		frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
+		frc::SmartDashboard::PutData("Auto Move?", &m_chooser_options_1);
+		frc::SmartDashboard::PutData("Auto Fast?", &m_chooser_options_2);
+		frc::SmartDashboard::PutData("Auto Wait?", &m_chooser_options_3);
 
 				frc::SmartDashboard::PutNumber("shoot slope", kInitialShooterSlope);
 	}
@@ -428,33 +452,44 @@ public:
 	}
 
 	void TeleopInit() {
-		ahrs->ZeroYaw();
-
+		DoOnceInit();
+		RepeatableInit();
 		m_wheel_state = kUnknownState;
 		m_starting_color = kNoColor;
 		m_half_rotation_count = 0;
 		m_intake_state = kBreachEmpty;
-		
-		double P_gyro = kPtunedGyro;
-		double I_gyro = kItunedGyro;
-		double D_gyro = kDtunedGyro;
-		/* used to tune PID numbers */
-		double P = frc::SmartDashboard::GetNumber("kP", kPturret);
-		double I = frc::SmartDashboard::GetNumber("kI", kIturret);
-		double D = frc::SmartDashboard::GetNumber("kD", kDturret);
-		//MaxRotateRate = frc::SmartDashboard::GetNumber("MaxRotateRate", MaxRotateRate);
-		
+	}
 
-		// PIDs
-		m_pidController_gyro = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
-		m_pidController_gyro->SetTolerance(8, 8);  // within 8 degrees of direction is considered on set point
-		m_pidController_limelight_robot = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
-		m_pidController_limelight_robot->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
-		m_pidController_limelight_turret = new frc2::PIDController (P, I, D);
-		m_pidController_limelight_turret->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
+	void DoOnceInit() {
+		if (!m_do_once_inited) {
 
-		// position turret
-		MoveTurretToStartingPosition();
+			ahrs->ZeroYaw();
+
+			double P_gyro = kPtunedGyro;
+			double I_gyro = kItunedGyro;
+			double D_gyro = kDtunedGyro;
+			/* used to tune PID numbers 
+			double P = frc::SmartDashboard::GetNumber("kP", kPturret);
+			double I = frc::SmartDashboard::GetNumber("kI", kIturret);
+			double D = frc::SmartDashboard::GetNumber("kD", kDturret);
+			*/
+			
+			// PIDs
+			m_pidController_gyro = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
+			m_pidController_gyro->SetTolerance(8, 8);  // within 8 degrees of direction is considered on set point
+			m_pidController_limelight_robot = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
+			m_pidController_limelight_robot->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
+			m_pidController_limelight_turret = new frc2::PIDController (kPturret, kIturret, kDturret);
+			m_pidController_limelight_turret->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
+
+			// position turret
+			MoveTurretToStartingPosition();
+		}
+
+		m_do_once_inited = true;
+	}
+
+	void RepeatableInit() {
 
 		// bring up shooter
 		m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
@@ -462,8 +497,6 @@ public:
 
 		// position ponytail up
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward);
-
-
 	}
 
 	std::string ColorToString (frc::Color color) {
@@ -522,7 +555,7 @@ public:
 			break;
 		case kCompletedRotations:
 			m_control_spinner.Set(0.0); // stop
-			m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
+			//m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
 			frc::SmartDashboard::PutNumber("CP COMPLETE", true);
 			break;
 		}
@@ -555,7 +588,7 @@ public:
 				break;
 			case kToColorComplete:
 				m_control_spinner.Set(0.0);
-				m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner here
+				//m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner here
 				frc::SmartDashboard::PutNumber("CP COMPLETE", true);
 				break;
 		}
@@ -607,12 +640,11 @@ public:
 				conveyer_speed = -kConveyerSpeed;
 			} else if (conveyer_out_button) {
 				conveyer_speed = kConveyerSpeed;
-			} else { // no conveyer input
-				conveyer_speed = 0.0;
 			}
+			m_vert_conveyer.Set(conveyer_speed);
 	}
 
-	void OperateShooterAndConveyer(bool &manual_conveyer_ok, double &conveyer_speed,
+	void OperateShooter(bool &manual_conveyer_ok, double &conveyer_speed,
 		bool manual_boost, bool manual_deboost) {
 
 		double targetSeen = m_limetable->GetNumber("tv",0.0);
@@ -621,37 +653,13 @@ public:
 		double targetOffsetAngle_Vertical = 0.0;
 		double targetOffsetAngle_Horizontal = 0.0;
 		if (targetSeen != 0.0) {
-		  // frc::SmartDashboard::PutNumber("Targ Area", targetArea);
 		  if (targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
 			targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
 			targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
-			//double targetSkew = m_limetable->GetNumber("ts",0.0);
-			//double targetWidth = m_limetable->GetNumber("tlong",0.0);
-
-			// frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
-			// frc::SmartDashboard::PutNumber("Targ Vert", targetOffsetAngle_Vertical);
 		  }
 		}
-
-		// double targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
-		// frc::SmartDashboard::PutNumber ("Shooter speed", targetVel_UnitsPer100ms);
-		// if (shooter_R > 0.1) {
-		// 	targetVel_UnitsPer100ms = -1 * shooter_R * 1500.0 * 2048 / 600;
-		// 	// //frc::SmartDashboard::PutNumber("shooter target", targetVelocity_UnitsPer100ms);
-		// } else if (auto_shoot_button) {
-		// 	/* while button1 is held down, closed-loop on target velocity */
-		// 	// MJS: Falcon sensor reports 2048 units/rev
-		// 	//targetVelocity_UnitsPer100ms = frc::SmartDashboard::GetNumber ("Shooter speed", 0.0);
-		// 	// targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
-		// 	m_shooter_star->Set(ControlMode::PercentOutput, 0.0);
-        // } else {
-		// 	targetVel_UnitsPer100ms = -1 * 1000.0 * 2048 / 600;
-		// }
-
 		conveyer_speed = 0.0; 
 		manual_conveyer_ok = false;
-
-		frc::SmartDashboard::PutNumber("targetSeen", targetSeen);
 
 		double shooter_speed_in_units = kIdleShooterSpeed;
 		if (targetSeen != 0.0) {
@@ -881,22 +889,19 @@ public:
 		
 		if (auto_shoot_button) {
 			m_limetable->PutNumber("ledMode",3.0); // LED on
-			OperateShooterAndConveyer(manual_conveyer_ok, conveyer_speed, 
+			OperateShooter(manual_conveyer_ok, conveyer_speed, 
 			    boost_shooter_up_button, boost_shooter_down_button);
 		} else {
 			m_limetable->PutNumber("ledMode",1.0); // LED off
 			m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 		}
-		if (manual_conveyer_ok){
-			OperateConveyer(conveyer_in_button, conveyer_out_button, conveyer_speed);
-		}
+		OperateConveyer(conveyer_in_button, conveyer_out_button, conveyer_speed);
 
 		if (auto_intake_button) {
 			// bring balls in and index using photo eye
 			AutoIntakeBalls();
 		} else { // enable manual control of intake
 			m_intake.Set(-intake_Y * kIntakeSpeed);
-			m_vert_conveyer.Set(conveyer_speed);
 		}
 		// operate control panel
 		if (spin_control_panel_button) {
@@ -922,30 +927,62 @@ public:
 	}
 
 	void AutonomousInit() {
+		frc::SmartDashboard::PutString("Auto phase", "init once");
+		DoOnceInit();
+		frc::SmartDashboard::PutString("Auto phase", "init repeat");
+		RepeatableInit();
+		frc::SmartDashboard::PutString("Auto phase", "init done");
 		m_autoSelected = m_chooser.GetSelected();
+		m_autoSelected_options_1 = m_chooser_options_1.GetSelected();
+		m_autoSelected_options_2 = m_chooser_options_2.GetSelected();
+		m_autoSelected_options_3 = m_chooser_options_3.GetSelected();
 		// m_autoSelected = SmartDashboard::GetString("Auto Selector",
 		//     kAutoNameDefault);
 		std::cout << "Auto selected: " << m_autoSelected << std::endl;
 
+		if (m_autoSelected == kAutoNameShootAndMove) {
+			m_limetable->PutNumber("ledMode",3.0);
+		}
 		m_timer.Reset();
 		m_timer.Start();
 	}
 
 	void AutonomousPeriodic() {
-		// simple motion to validate motor configuration
-		// Drive for 2 seconds
-		if (m_timer.Get() < 2.0) {
-		m_robotDrive.TankDrive(0.5, 0); // left motor only
-		} else if (m_timer.Get() < 4.0) {
-		m_robotDrive.TankDrive(0, 0.5); // right motor only
-		} else if (m_timer.Get() < 6.0) {
-		// Drive forwards half speed
-		m_robotDrive.ArcadeDrive(0.5, 0.0);
+		frc::SmartDashboard::PutString("Auto phase", "periodic");
+		if (m_autoSelected == kAutoNameTestWheels) {
+			// simple motion to validate motor configuration
+			// Drive for 2 seconds
+			if (m_timer.Get() < 2.0) {
+			m_robotDrive.TankDrive(0.5, 0); // left motor only
+			} else if (m_timer.Get() < 4.0) {
+			m_robotDrive.TankDrive(0, 0.5); // right motor only
+			} else if (m_timer.Get() < 6.0) {
+			// Drive forwards half speed
+			m_robotDrive.ArcadeDrive(0.5, 0.0);
+			} else {
+			// Stop robot
+			m_robotDrive.ArcadeDrive(0.0, 0.0);
+			}
+		} else if (m_autoSelected == kAutoNameShootAndMove) {
+			frc::SmartDashboard::PutString("Auto Mode", "kAutoNameShootAndMove");
+			if (m_autoSelected_options_3 == kAutoOptionWait && m_timer.Get() < 3) {
+				frc::SmartDashboard::PutString("Auto Mode", "waiting");
+				// do nothing for 7 secs		
+			} else if (m_timer.Get() < 6) {
+				frc::SmartDashboard::PutString("Auto Mode", "shooting");
+				bool manual_conveyer_ok; double conveyer_speed;
+				OperateShooter(manual_conveyer_ok, conveyer_speed, false, false);
+				OperateConveyer (false, false, conveyer_speed);
+			} else { // after 6 seconds
+				// move if required
+				m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
+				m_vert_conveyer.Set(0);
+			}
 		} else {
-		// Stop robot
-		m_robotDrive.ArcadeDrive(0.0, 0.0);
+			// only doing init
+			frc::SmartDashboard::PutString("Auto Mode", "nothing");
 		}
-}
+	}
 
 };
 
