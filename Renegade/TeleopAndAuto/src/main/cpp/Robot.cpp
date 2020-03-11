@@ -62,7 +62,7 @@ using namespace frc;
 	const static long kTurretRIGHT = 7000;
 	const static long kTurretDOWN = 10000;
 	const static long kTurretLEFT = -7000;
-	const static int kLimelightTolerance = 4; // degrees
+	const static long kLimelightTolerance = 5; // degrees
 
 
 	/* stock color set
@@ -83,7 +83,7 @@ using namespace frc;
 	const static double kItunedGyro = 0.0015;
 	const static double kDtunedGyro = 0.001;
 	const static double kPturret = 0.01;
-	const static double kIturret = 0.0;
+	const static double kIturret = 0.003;
 	const static double kDturret = 0.0;
 
 class Robot: public TimedRobot {
@@ -335,7 +335,7 @@ public:
 				frc::SmartDashboard::PutNumber("shoot slope", kInitialShooterSlope);
 	}
 
-	void MoveTurretToManualPosition (double target_position) {
+	void MoveTurretToManualPosition (long target_position) {
 		m_turret->Set(ControlMode::Position, target_position);
 		if (abs(target_position - m_turret->GetSelectedSensorPosition(0)) < kTurretTolerance) {
 			m_turret->Set(ControlMode::PercentOutput, 0.0); // stop turret
