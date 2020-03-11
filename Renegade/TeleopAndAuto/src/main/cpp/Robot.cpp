@@ -68,19 +68,21 @@ using namespace frc;
 	const static long kAutoDriveDistance = 6000;
 
 
-	/* stock color set
+	/* stock color set */
 	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
 	static constexpr frc::Color kGreenTarget = frc::Color(0.197, 0.561, 0.240);
 	static constexpr frc::Color kRedTarget = frc::Color(0.561, 0.232, 0.114);
 	static constexpr frc::Color kYellowTarget = frc::Color(0.361, 0.524, 0.113);
-	*/
+	static constexpr frc::Color kNoColor = frc::Color(0,0,0);
+	
 
-	// our mockup control panel
+	/* our mockup control panel
 	static constexpr frc::Color kBlueTarget = frc::Color(0.175, 0.436, 0.388);
 	static constexpr frc::Color kGreenTarget = frc::Color(0.206, 0.545, 0.248);
 	static constexpr frc::Color kRedTarget = frc::Color(0.424, 0.386, 0.190);
 	static constexpr frc::Color kYellowTarget = frc::Color(0.330, 0.525, 0.145);
 	static constexpr frc::Color kNoColor = frc::Color(0,0,0);
+	*/
 	
 	const static double kPtunedGyro = 0.05;
 	const static double kItunedGyro = 0.0;
@@ -571,6 +573,7 @@ public:
 		std::string colorString;
 		double confidence = 0.0;
 
+		MoveTurretToManualPosition(kTurretUP); // hold turret in position
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 		
 		frc::Color detectedColor = m_colorSensor.GetColor();
@@ -613,6 +616,7 @@ public:
 		std::string colorString;
 		double confidence = 0.0;
 
+		MoveTurretToManualPosition(kTurretUP); // hold turret in position
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 
 		frc::Color detectedColor = m_colorSensor.GetColor();
