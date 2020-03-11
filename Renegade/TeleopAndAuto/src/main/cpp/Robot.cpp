@@ -64,6 +64,9 @@ using namespace frc;
 	const static long kTurretLEFT = -7000;
 	const static long kLimelightTolerance = 5; // degrees
 
+	const static double kAutoDriveSpeed = 0.5;
+	const static long kAutoDriveDistance = 6000;
+
 
 	/* stock color set
 	static constexpr frc::Color kBlueTarget = frc::Color(0.143, 0.427, 0.429);
@@ -195,6 +198,7 @@ class Robot: public TimedRobot {
 	const std::string kAutoNameShootAndMove = "Shoot/Move";
 	const std::string kAutoOptionForward = "Forward";
 	const std::string kAutoOptionBackward = "Backard";
+	const std::string kAutoOptionNoMove = "No Move";
 	const std::string kAutoOptionFast = "Fast";
 	const std::string kAutoOptionSlow = "Slow";
 	const std::string kAutoOptionWait = "Wait";
@@ -240,7 +244,8 @@ public:
         /* feedback sensor */
 		m_leftfront.ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, kTimeoutMs);
 		m_rightfront.ConfigSelectedFeedbackSensor(FeedbackDevice::CTRE_MagEncoder_Relative, 0, kTimeoutMs);
-		// phase for TalonFX integrated sensor is automatically correct
+		m_leftfront.SetSensorPhase(false);
+		m_rightfront.SetSensorPhase(false);
 
 		/* set the peak and nominal outputs */
 		m_leftfront.ConfigNominalOutputForward(0, kTimeoutMs);
@@ -385,6 +390,7 @@ public:
 		m_chooser.AddOption(kAutoNameTestWheels, kAutoNameTestWheels);
 		m_chooser_options_1.SetDefaultOption(kAutoOptionForward,kAutoOptionForward);
 		m_chooser_options_1.AddOption(kAutoOptionBackward, kAutoOptionBackward);
+		m_chooser_options_1.AddOption(kAutoOptionNoMove, kAutoOptionNoMove);
 		m_chooser_options_2.SetDefaultOption(kAutoOptionSlow,kAutoOptionSlow);
 		m_chooser_options_2.AddOption(kAutoOptionFast, kAutoOptionFast);
 		m_chooser_options_3.AddOption(kAutoOptionWait, kAutoOptionWait);
@@ -982,6 +988,8 @@ public:
 		if (m_autoSelected == kAutoNameShootAndMove) {
 			m_limetable->PutNumber("ledMode",3.0);
 		}
+		m_leftfront.SetSelectedSensorPosition(0, kPIDLoopIdx, kTimeoutMs);
+		m_rightfront.SetSelectedSensorPosition(0, kPIDLoopIdx, kTimeoutMs);
 		m_timer.Reset();
 		m_timer.Start();
 	}
@@ -1013,9 +1021,23 @@ public:
 				OperateShooter(manual_conveyer_ok, conveyer_speed, false, false);
 				OperateConveyer (false, false, conveyer_speed);
 			} else { // after 6 seconds
-				// move if required
 				m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 				m_vert_conveyer.Set(0);
+				double motor_speed = 0.0;
+				if (m_autoSelected_options_1 == kAutoOptionForward) {
+					motor_speed = kAutoDriveSpeed;
+				} else if (m_autoSelected_options_1 == kAutoOptionBackward) {
+					motor_speed = -kAutoDriveSpeed;
+				}
+				frc::SmartDashboard::PutString("Auto Mode", "should move");
+				if (abs(m_leftfront.GetSelectedSensorPosition(0)) < kAutoDriveDistance) {
+					m_robotDrive.TankDrive(motor_speed, motor_speed);
+					frc::SmartDashboard::PutString("Auto Mode", "moving");
+				} else {
+					m_robotDrive.TankDrive(0, 0);
+					frc::SmartDashboard::PutString("Auto Mode", "done moving");
+				}
+				frc::SmartDashboard::PutNumber("encoder", m_leftfront.GetSelectedSensorPosition(0));
 			}
 		} else {
 			// only doing init
