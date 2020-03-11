@@ -54,15 +54,22 @@ public:
 	/** save the target position to servo to */
 	double targetPositionRotations;
 
+    double kP = 0.1;
+    double kI = 0.0001;
+    double kD = 0.5;
+    double kF = 0.5;
+	double max_speed = .4;
+
 	void RobotInit() {
 		/* Factory Default all hardware to prevent unexpected behaviour */
 		_talon->ConfigFactoryDefault();
 		
 		/* lets grab the 360 degree position of the MagEncoder's absolute position */
-		int absolutePosition = _talon->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
+		//int absolutePosition = _talon->GetSelectedSensorPosition(0) & 0xFFF; /* mask out the bottom12 bits, we don't care about the wrap arounds */
 		/* use the low level API to set the quad encoder signal */
-		_talon->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx,
-				kTimeoutMs);
+		//_talon->SetSelectedSensorPosition(absolutePosition, kPIDLoopIdx,
+		//		kTimeoutMs);
+		
 
 		/* choose the sensor and sensor direction */
 		_talon->ConfigSelectedFeedbackSensor(
@@ -71,16 +78,31 @@ public:
 		_talon->SetSensorPhase(false);
 
 		/* set the peak and nominal outputs, 12V means full */
+		frc::SmartDashboard::PutNumber("kP", kP);
+		frc::SmartDashboard::PutNumber("kI", kI);
+		frc::SmartDashboard::PutNumber("kD", kD);
+		frc::SmartDashboard::PutNumber("kF", kF);
+		frc::SmartDashboard::PutNumber("max_speed", max_speed);
 		_talon->ConfigNominalOutputForward(0, kTimeoutMs);
 		_talon->ConfigNominalOutputReverse(0, kTimeoutMs);
-		_talon->ConfigPeakOutputForward(0.7, kTimeoutMs);
-		_talon->ConfigPeakOutputReverse(-0.7, kTimeoutMs);
 
-		/* set closed loop gains in slot0 */
+
+	}
+
+	void TeleopInit() {
+		_talon->SetSelectedSensorPosition(0, kPIDLoopIdx, kTimeoutMs);
+		  kP = frc::SmartDashboard::GetNumber("kP", kP);
+  kI = frc::SmartDashboard::GetNumber("kI", kI);
+  kD = frc::SmartDashboard::GetNumber("kD", kD);
+  kF = frc::SmartDashboard::GetNumber("kF", kF);
+  max_speed = frc::SmartDashboard::GetNumber("max_speed", max_speed);
+  		/* set closed loop gains in slot0 */
 		_talon->Config_kF(kPIDLoopIdx, 0.0, kTimeoutMs);
-		_talon->Config_kP(kPIDLoopIdx, 0.8, kTimeoutMs);
-		_talon->Config_kI(kPIDLoopIdx, 0.0, kTimeoutMs);
-		_talon->Config_kD(kPIDLoopIdx, 0.0, kTimeoutMs);
+		_talon->Config_kP(kPIDLoopIdx, kP, kTimeoutMs);
+		_talon->Config_kI(kPIDLoopIdx, kI, kTimeoutMs);
+		_talon->Config_kD(kPIDLoopIdx, kD, kTimeoutMs);
+		_talon->ConfigPeakOutputForward(max_speed, kTimeoutMs);
+		_talon->ConfigPeakOutputReverse(-max_speed, kTimeoutMs);
 	}
 
 	/**
@@ -91,18 +113,26 @@ public:
 		double leftYstick = _joy->GetY();
 		double motorOutput = _talon->GetMotorOutputPercent();
 		bool button1 = _joy->GetRawButton(1);
-		bool button2 = _joy->GetRawButton(2);
+		bool button2 = _joy->GetRawButton(2); bool button3 = _joy->GetRawButton(3);
 		/* prepare line to print */
 		_sb.append("\tout:");
 		_sb.append(std::to_string(motorOutput));
 		_sb.append("\tpos:");
 		_sb.append(std::to_string(_talon->GetSelectedSensorPosition(kPIDLoopIdx)));
 		/* on button1 press enter closed-loop mode on target position */
-		//if (!_lastButton1 && button1) {
+		if (button1) {
 			/* Position mode - button just pressed */
-			targetPositionRotations = leftYstick * 2.0 * 4096; /* 10 Rotations in either direction */
+			//targetPositionRotations = leftYstick * 2.0 * 4096; /* 10 Rotations in either direction */
+			targetPositionRotations = -3000;
 			_talon->Set(ControlMode::Position, targetPositionRotations); /* 10 rotations in either direction */
-		//}
+		} else if (button2) {
+			_talon->Set(ControlMode::PercentOutput, max_speed);
+		} else if (button3) {
+			_talon->Set(ControlMode::PercentOutput, -max_speed);
+		} else {
+			_talon->Set(ControlMode::PercentOutput, 0.0);
+		}
+		
 		/* on button2 just straight drive */
 		// if (button2) {
 		// 	/* Percent voltage mode */

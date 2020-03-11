@@ -36,24 +36,25 @@ using namespace frc;
 	const static double kToleranceDegrees = 2.0f;
 	const static double kMaxRotateRate = 0.5;
 	const static double kGamepadDeadZone = 0.15;
-	const static double kSlowSpeedFactor = 0.6;
-	const static double kFastSpeedFactor = 8.0;
+	const static double kSlowSpeedFactor = 0.7;
+	const static double kFastSpeedFactor = 0.9;
 	const static double kMinTargetAreaPercent = 0.1;
 
-	const static double kConveyerSpeed = 0.66;
+	const static double kConveyerSpeed = 0.75;
 	const static double kIntakeSpeed = 0.7;
 	const static double kIntakeDelayArrival = 1;
 	const static double kIntakeDelayGap = 0.05;
 
 	const static double kIdleShooterSpeed = 6000;
-	const static double kMaxShooterSpeedError = 2000;  // move conveyer automatically when speed is good
+	const static double kMaxShooterSpeedError = 3500;  // move conveyer automatically when speed is good
+	const static double kInitialShooterSlope = 300;
 
 	const static double kMinColorConfidence = 0.85;
 	const static double kControlPanelSpeed = 1.0;
 
 	const static double kTurretSpeedInitial = 0.4;
 	const static double kTurretSpeedMax = 0.6;
-	const static long kMaxTurretInitialSeek = -6000; // in encoder counts
+	const static long kMaxTurretInitialSeek = -3000; // in encoder counts
 	const static long kTurretTolerance = 500; // in encoder counts
 	const static long kTurretLimitPort = 15000;
 	const static long kTurretLimitStarboard = -15000;
@@ -103,7 +104,7 @@ class Robot: public TimedRobot {
 	// shooter 
 	TalonFX * m_shooter_star = new TalonFX(15); // 15 is starboard, 0 is port
 	TalonFX * m_shooter_port = new TalonFX(0); // 15 is starboard, 0 is port
-	double shooter_speed_in_units = 0.0;
+	double m_shooter_slope = 0.0;
 	//Joystick * _joy = new Joystick(0);
 	// std::string _sb;
 	// int _loops = 0;
@@ -327,6 +328,8 @@ public:
 		m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
 		m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
 		frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
+
+				frc::SmartDashboard::PutNumber("shoot slope", kInitialShooterSlope);
 	}
 
 	void MoveTurretToStartingPosition() {
@@ -392,6 +395,7 @@ public:
 	void TrackTargetWithTurret(double targetOffsetAngle) {
 		double current_pos = m_turret->GetSelectedSensorPosition(0);
 		if (current_pos > kTurretLimitStarboard && current_pos < kTurretLimitPort) {
+			frc::SmartDashboard::PutNumber("turret safe", true);
 			m_pidController_limelight_robot->SetSetpoint(0);
 			double new_speed = m_pidController_limelight_robot->Calculate(targetOffsetAngle);
 
@@ -399,6 +403,8 @@ public:
 			m_turret->Set(ControlMode::Velocity, new_speed);
 
 			// hold position; don't reset when on target
+		} else {
+			frc::SmartDashboard::PutNumber("turret safe", false);
 		}
 	}
 
@@ -431,17 +437,9 @@ public:
 		// position turret
 		MoveTurretToStartingPosition();
 
-		// ramp up shooter slowly
-		// m_timer.Reset();
-		// m_timer.Start();
-		// while (m_timer.Get() < 3) {
-		// 	if (m_timer.Get() > 1) {
-		// 		m_shooter_star->Set(ControlMode::Velocity, -2*kIdleShooterSpeed/4);
-		// 	} else if (m_timer.Get() > 2) {
-		// 		m_shooter_star->Set(ControlMode::Velocity, -3*kIdleShooterSpeed/4);
-		// 	}
-		// } // while timer
+		// bring up shooter
 		m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
+		m_shooter_slope = frc::SmartDashboard::GetNumber("shoot slope", kInitialShooterSlope);
 
 		// position ponytail up
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward);
@@ -584,6 +582,81 @@ public:
 		} // if turret is not on-deck
 	}
 
+	void OperateConveyer (bool conveyer_in_button, bool conveyer_out_button, double &conveyer_speed) {
+			frc::SmartDashboard::PutNumber("conv man ok", true);
+			if (conveyer_in_button) {
+				conveyer_speed = -kConveyerSpeed;
+			} else if (conveyer_out_button) {
+				conveyer_speed = kConveyerSpeed;
+			} else { // no conveyer input
+				conveyer_speed = 0.0;
+			}
+	}
+
+	void OperateShooterAndConveyer(bool &manual_conveyer_ok, double &conveyer_speed) {
+
+		double targetSeen = m_limetable->GetNumber("tv",0.0);
+		double targetArea = m_limetable->GetNumber("ta",0.0);
+
+		double targetOffsetAngle_Vertical = 0.0;
+		double targetOffsetAngle_Horizontal = 0.0;
+		if (targetSeen != 0.0) {
+		  // frc::SmartDashboard::PutNumber("Targ Area", targetArea);
+		  if (targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
+			targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
+			targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
+			//double targetSkew = m_limetable->GetNumber("ts",0.0);
+			//double targetWidth = m_limetable->GetNumber("tlong",0.0);
+
+			// frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
+			// frc::SmartDashboard::PutNumber("Targ Vert", targetOffsetAngle_Vertical);
+		  }
+		}
+
+		// double targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
+		// frc::SmartDashboard::PutNumber ("Shooter speed", targetVel_UnitsPer100ms);
+		// if (shooter_R > 0.1) {
+		// 	targetVel_UnitsPer100ms = -1 * shooter_R * 1500.0 * 2048 / 600;
+		// 	// //frc::SmartDashboard::PutNumber("shooter target", targetVelocity_UnitsPer100ms);
+		// } else if (auto_shoot_button) {
+		// 	/* while button1 is held down, closed-loop on target velocity */
+		// 	// MJS: Falcon sensor reports 2048 units/rev
+		// 	//targetVelocity_UnitsPer100ms = frc::SmartDashboard::GetNumber ("Shooter speed", 0.0);
+		// 	// targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
+		// 	m_shooter_star->Set(ControlMode::PercentOutput, 0.0);
+        // } else {
+		// 	targetVel_UnitsPer100ms = -1 * 1000.0 * 2048 / 600;
+		// }
+
+		conveyer_speed = 0.0; 
+		manual_conveyer_ok = false;
+
+		frc::SmartDashboard::PutNumber("targetSeen", targetSeen);
+
+		double shooter_speed_in_units = kIdleShooterSpeed;
+		if (targetSeen != 0.0) {
+			TrackTargetWithTurret(targetOffsetAngle_Horizontal);
+
+			if (targetOffsetAngle_Vertical < -18) {
+				shooter_speed_in_units = 23000;  // max out shooter if far away
+			} else {
+				shooter_speed_in_units = 12696.1 - m_shooter_slope * targetOffsetAngle_Vertical; // originally 317.502
+			}
+			frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
+			double shooter_speed_error = m_shooter_star->GetClosedLoopError();
+			frc::SmartDashboard::PutNumber("shooter err", shooter_speed_error);
+			if (shooter_speed_error < kMaxShooterSpeedError) {
+				// auto feed balls into shooter
+				conveyer_speed = -kConveyerSpeed;
+			} else {
+				manual_conveyer_ok = true;
+			}
+		} else { // no target; permit manual control of conveyer
+			manual_conveyer_ok = true;
+		}
+		m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
+
+	}
 	void TeleopPeriodic() {
 
 		//double targetPositionRotations =  -2000 * shooter_Y; // positive moves turret clockwise
@@ -656,11 +729,13 @@ public:
 		if (m_stick->GetRawButton(6) && m_stick->GetRawButton(8)) {
 			deploy_hanger_pressed = true;
 		}
-		bool high_gear_button_presssed = m_stick->GetRawButton(7);
+		
 		bool hang_pressed = false;
-		if (m_stick->GetRawButton(5) && m_stick->GetRawButton(7)) {
-			hang_pressed = true;
-		}
+		// if (m_stick->GetRawButton(5) && m_stick->GetRawButton(7)) {
+		// 	hang_pressed = true;
+		// } else { // no hang selected
+		bool high_gear_button_presssed = m_stick->GetRawButton(7);
+
 
 		/****************************************** co-pilot
 		Left Stick	Manual turret dir/speed	
@@ -702,22 +777,6 @@ public:
 		/****************************************** limelight *****************************************************/
 
 
-		double targetSeen = m_limetable->GetNumber("tv",0.0);
-		double targetArea = m_limetable->GetNumber("ta",0.0);
-
-		double targetOffsetAngle_Vertical = 0.0;
-		if (targetSeen != 0.0) {
-		  // frc::SmartDashboard::PutNumber("Targ Area", targetArea);
-		  if (targetArea > kMinTargetAreaPercent) {  // tv is true if there is a target detected
-			//double targetOffsetAngle_Horizontal = m_limetable->GetNumber("tx",0.0);
-			targetOffsetAngle_Vertical = m_limetable->GetNumber("ty",0.0);   
-			//double targetSkew = m_limetable->GetNumber("ts",0.0);
-			double targetWidth = m_limetable->GetNumber("tlong",0.0);
-
-			// frc::SmartDashboard::PutNumber("Targ Width", targetWidth);
-			// frc::SmartDashboard::PutNumber("Targ Vert", targetOffsetAngle_Vertical);
-		  }
-		}
 
 		/********************************************** move stuff ********************************************/
 
@@ -791,55 +850,19 @@ public:
 		//double motorOutput = m_shooter_star->GetMotorOutputPercent();
 
 		// ++++++++++++++++++++ shooter +++++++++++++++++++++++++++
-
-		// double targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
-		// frc::SmartDashboard::PutNumber ("Shooter speed", targetVel_UnitsPer100ms);
-		// if (shooter_R > 0.1) {
-		// 	targetVel_UnitsPer100ms = -1 * shooter_R * 1500.0 * 2048 / 600;
-		// 	// //frc::SmartDashboard::PutNumber("shooter target", targetVelocity_UnitsPer100ms);
-		// } else if (auto_shoot_button) {
-		// 	/* while button1 is held down, closed-loop on target velocity */
-		// 	// MJS: Falcon sensor reports 2048 units/rev
-		// 	//targetVelocity_UnitsPer100ms = frc::SmartDashboard::GetNumber ("Shooter speed", 0.0);
-		// 	// targetVel_UnitsPer100ms = -1 * 3000.0 * 2048 / 600;
-		// 	m_shooter_star->Set(ControlMode::PercentOutput, 0.0);
-        // } else {
-		// 	targetVel_UnitsPer100ms = -1 * 1000.0 * 2048 / 600;
-		// }
-
-		double conveyer_speed = 0.0; 
+		bool manual_conveyer_ok = false;
+		double conveyer_speed = 0.0;
+		double shooter_speed_in_units = 0.0;
+		
 		if (auto_shoot_button) {
 			m_limetable->PutNumber("ledMode",3.0); // LED on
+			OperateShooterAndConveyer(manual_conveyer_ok, conveyer_speed);
 		} else {
 			m_limetable->PutNumber("ledMode",1.0); // LED off
+			m_shooter_star->Set(ControlMode::Velocity, -kIdleShooterSpeed);
 		}
-		frc::SmartDashboard::PutNumber("targetSeen", targetSeen);
-		if (targetSeen != 0.0 && auto_shoot_button) {
-
-			if (targetOffsetAngle_Vertical < -18) {
-				shooter_speed_in_units = 23000;  // max out shooter if far away
-			} else {
-				shooter_speed_in_units = 12696.1 - 317.502 * targetOffsetAngle_Vertical;
-			}
-			frc::SmartDashboard::PutNumber("shoot speed", shooter_speed_in_units);
-
-			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
-			double shooter_speed_error = m_shooter_star->GetClosedLoopError();
-			frc::SmartDashboard::PutNumber("shooter err", shooter_speed_error);
-			if (shooter_speed_error < kMaxShooterSpeedError) {
-				// auto feed balls into shooter
-				conveyer_speed = -kConveyerSpeed;
-			} 
-		} else { // no target; permit manual control
-			shooter_speed_in_units = kIdleShooterSpeed;
-			m_shooter_star->Set(ControlMode::Velocity, -shooter_speed_in_units);
-			if (conveyer_in_button) {
-				conveyer_speed = -kConveyerSpeed;
-			} else if (conveyer_out_button) {
-				conveyer_speed = kConveyerSpeed;
-			} else { // no conveyer input
-				conveyer_speed = 0.0;
-			}
+		if (manual_conveyer_ok){
+			OperateConveyer(conveyer_in_button, conveyer_out_button, conveyer_speed);
 		}
 
 		if (auto_intake_button) {
