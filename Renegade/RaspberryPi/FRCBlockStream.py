@@ -6,6 +6,7 @@ import sys
 import time
 import logging
 import threading
+
 #had trouble finding pynetworktables module
 sys.path.append('/home/pi/.local/lib/python3.7/dist-packages/pynetworktables-2019.0.1-py3.7.egg')
 
@@ -53,6 +54,7 @@ while (status == -1):
     status = 0
   except:
     pb.putNumber("STATUS",-1) # -1 means camera exception
+  time.sleep(0.1)
 print ('successfully inited pixycam')
 
 class Blocks (Structure):
@@ -96,4 +98,4 @@ while 1:
       pb.putNumber("ANGLE",blocks[index_of_closest].m_angle)
       pb.putNumber("INDEX",blocks[index_of_closest].m_index)
       pb.putNumber("AGE",blocks[index_of_closest].m_age)
-
+  time.sleep(0.1)
