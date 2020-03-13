@@ -13,6 +13,7 @@ sys.path.append('/home/pi/.local/lib/python3.7/dist-packages/pynetworktables-201
 from networktables import NetworkTables
 
 from ctypes import *
+import pixy
 from pixy import *
 
 #Listener and vars for verifying connection to networktable
@@ -70,6 +71,8 @@ class Blocks (Structure):
 blocks = BlockArray(100)
 frame = 0
 minY = 10
+minWidth = 100
+maxWidth = 2500
 
 while 1:
   index_of_closest = 0
@@ -85,8 +88,11 @@ while 1:
     #print('frame %3d:' % (frame))
     frame = frame + 1
     for index in range (0, count):
+      width = blocks[index].m_width * blocks[index].m_height
       #print('[BLOCK: SIG=%d X=%3d Y=%3d WIDTH=%3d HEIGHT=%3d]' % (blocks[index].m_signature, blocks[index].m_x, blocks[index].m_y, blocks[index].m_width, blocks[index].m_height))
-      if (blocks[index].m_y > minY) and (blocks[index].m_age > 0) and (blocks[index].m_y < blocks[index_of_closest].m_y):
+      if (blocks[index].m_y > minY) and (blocks[index].m_age > 0) \
+          and (width > minWidth) and (width < maxWidth) \
+          and (blocks[index].m_y < blocks[index_of_closest].m_y):
         index_of_closest = index
       #adding values to networktable
       pb.putNumber("FRAME",frame)
