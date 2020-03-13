@@ -409,8 +409,8 @@ public:
 		m_chooser_options_dir.SetDefaultOption(kAutoOptionForward,kAutoOptionForward);
 		m_chooser_options_dir.AddOption(kAutoOptionBackward, kAutoOptionBackward);
 		m_chooser_options_dir.AddOption(kAutoOptionNoMove, kAutoOptionNoMove);
-		m_chooser_options_speed.SetDefaultOption(kAutoOptionSlow,kAutoOptionSlow);
-		m_chooser_options_speed.AddOption(kAutoOptionFast, kAutoOptionFast);
+		m_chooser_options_speed.SetDefaultOption(kAutoOptionFast,kAutoOptionFast);
+		m_chooser_options_speed.AddOption(kAutoOptionSlow, kAutoOptionSlow);
 		m_chooser_options_wait.AddOption(kAutoOptionWait, kAutoOptionWait);
 		m_chooser_options_wait.AddOption(kAutoOptionNoWait, kAutoOptionNoWait);
 		frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
@@ -680,7 +680,8 @@ public:
 				frc::SmartDashboard::PutNumber("CP COMPLETE", true);
 				break;
 		}
-		// frc::SmartDashboard::PutString ("Spun to", ColorToString(matchedColor));
+		frc::SmartDashboard::PutString("color", ColorToString(matchedColor));
+		frc::SmartDashboard::PutNumber("confidence", confidence);
 	}
 
 	void AutoIntakeBalls() {
