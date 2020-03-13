@@ -51,7 +51,7 @@ using namespace frc;
 	const static double kInitialShooterSlope = 300;
 
 	const static double kMinColorConfidence = 0.85;
-	const static double kControlPanelSpeed = 1.0;
+	const static double kControlPanelSpeed = 0.6;
 
 	const static double kTurretSpeedInitial = 0.4;
 	const static double kTurretSpeedMax = 0.6;
@@ -64,6 +64,9 @@ using namespace frc;
 	const static long kTurretDOWN = 10000;
 	const static long kTurretLEFT = -7000;
 	const static long kLimelightTolerance = 5; // degrees
+
+	const static long kPixyTolerance = 5; // X values
+	const static double kChaseBallSpeed = 0.2;
 
 	const static double kAutoDriveSpeed = 0.5;
 	const static long kAutoDriveDistance = 6000;
@@ -88,6 +91,9 @@ using namespace frc;
 	const static double kPtunedGyro = 0.05;
 	const static double kItunedGyro = 0.0;
 	const static double kDtunedGyro = 0.0;
+	const static double kPtunedPixy = 0.01;
+	const static double kItunedPixy = 0.0;
+	const static double kDtunedPixy = 0.0;
 	const static double kPturret = 0.01;
 	const static double kIturret = 0.003;
 	const static double kDturret = 0.0;
@@ -184,10 +190,12 @@ class Robot: public TimedRobot {
     frc2::PIDController *m_pidController_gyro; // for orienting robot with gyro
 	frc2::PIDController *m_pidController_limelight_robot;
 	frc2::PIDController *m_pidController_limelight_turret;
+	frc2::PIDController *m_pidController_pixycam;
     frc::Timer m_timer;
 
 	// limelight
 	std::shared_ptr<NetworkTable> m_limetable;  // for LimeLight
+	std::shared_ptr<NetworkTable> m_pixytable;  // for Pixy Cam
 
 	// misc members
     double rotateToAngleRate;           // Current rotation rate
@@ -197,6 +205,7 @@ class Robot: public TimedRobot {
 	frc::SendableChooser<std::string> m_chooser_options_speed;
 	frc::SendableChooser<std::string> m_chooser_options_wait;
 	const std::string kAutoNameTestWheels = "Move Wheels";
+	const std::string kAutoNameMoveOnly = "Move Only";
 	const std::string kAutoNameJustInit = "Just Initialize";
 	const std::string kAutoNameShootAndMove = "Shoot/Move";
 	const std::string kAutoOptionForward = "Forward";
@@ -340,6 +349,10 @@ public:
 		//m_limetable->PutNumber("ledMode",1.0); // LED off
 		//m_limetable->PutNumber("stream",0.0);  // secondary camera side-by-side
 
+		/***************** pixycam *************************/
+
+		m_pixytable = nt::NetworkTableInstance::GetDefault().GetTable("PixyBlocks");
+
 		/***************** joysticks *************************/
 
 		m_stick = new Joystick(k_joystick_pilot);
@@ -371,11 +384,11 @@ public:
 			DriverStation::ReportError(p_err_msg);
 		}
 
-		/* this is used to tune the PID numbers with shuffleboard
-		frc::SmartDashboard::PutNumber("kP", kPturret);
-		frc::SmartDashboard::PutNumber("kI", kIturret);
-		frc::SmartDashboard::PutNumber("kD", kDturret);
-		*/
+		/* this is used to tune the PID numbers with shuffleboard */
+		frc::SmartDashboard::PutNumber("kP", kPtunedPixy);
+		frc::SmartDashboard::PutNumber("kI", kItunedPixy);
+		frc::SmartDashboard::PutNumber("kD", kDtunedPixy);
+		
 		frc::SmartDashboard::PutNumber("shoot slope", kInitialShooterSlope);
 		
 		// control panel colors
@@ -390,6 +403,7 @@ public:
 		m_robotDrive.SetExpiration(0.1);
 
 		m_chooser.SetDefaultOption(kAutoNameShootAndMove, kAutoNameShootAndMove);
+		m_chooser.AddOption(kAutoNameMoveOnly, kAutoNameMoveOnly);
 		m_chooser.AddOption(kAutoNameJustInit, kAutoNameJustInit);
 		m_chooser.AddOption(kAutoNameTestWheels, kAutoNameTestWheels);
 		m_chooser_options_dir.SetDefaultOption(kAutoOptionForward,kAutoOptionForward);
@@ -473,6 +487,20 @@ public:
 		}
 	}
 
+	void ChasePowerCells() {
+		double pixy_X = 167 - m_pixytable->GetNumber("X",0.0);
+		frc::SmartDashboard::PutNumber("Ball X", pixy_X);
+
+		m_pidController_pixycam->SetSetpoint(0);
+		double diff_speed = m_pidController_pixycam->Calculate(pixy_X);
+
+		// move robot
+		frc::SmartDashboard::PutNumber("Ball chase", diff_speed);
+		m_robotDrive.TankDrive(-diff_speed+kChaseBallSpeed, diff_speed+kChaseBallSpeed, false);
+
+		// don't reset pid controller
+	}
+
 	bool TrackTargetWithTurret(double targetOffsetAngle) {
 		bool result = false;  // return true when on set point
 		targetOffsetAngle = -targetOffsetAngle; 
@@ -514,12 +542,15 @@ public:
 			double P_gyro = kPtunedGyro;
 			double I_gyro = kItunedGyro;
 			double D_gyro = kDtunedGyro;
-			/* used to tune PID numbers 
-			double P = frc::SmartDashboard::GetNumber("kP", P_gyro);
-			double I = frc::SmartDashboard::GetNumber("kI", I_gyro);
-			double D = frc::SmartDashboard::GetNumber("kD", D_gyro);
-			*/
-			
+			double P_pixy = kPtunedPixy;  // try using the same pid values for rotating to balls
+			double I_pixy = kItunedPixy;
+			double D_pixy = kDtunedPixy;
+
+			/* used to tune PID numbers */
+			double P = frc::SmartDashboard::GetNumber("kP", P_pixy);
+			double I = frc::SmartDashboard::GetNumber("kI", I_pixy);
+			double D = frc::SmartDashboard::GetNumber("kD", D_pixy);
+					
 			
 			// PIDs
 			m_pidController_gyro = new frc2::PIDController (P_gyro, I_gyro, D_gyro);
@@ -528,6 +559,8 @@ public:
 			m_pidController_limelight_robot->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
 			m_pidController_limelight_turret = new frc2::PIDController (kPturret, kIturret, kDturret);
 			m_pidController_limelight_turret->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
+			m_pidController_pixycam = new frc2::PIDController (P, I, D);
+			m_pidController_pixycam->SetTolerance(kPixyTolerance, kPixyTolerance);  // within 8 degrees of target is considered on set point
 
 			// position turret
 			MoveTurretToStartingPosition();
@@ -565,6 +598,7 @@ public:
 	void ResetSpinner() {
 		m_robotDrive.TankDrive(0, 0); // stop pressing into CP
 		m_wheel_state = kUnknownState;
+		m_half_rotation_count = 0;
 		m_wheel_state_to_color = kOffTargetColor;
 		m_control_spinner.Set(0.0);
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kForward); // raise spinner
@@ -575,7 +609,7 @@ public:
 		double confidence = 0.0;
 		frc::SmartDashboard::PutNumber("CP COMPLETE", false);
 
-		m_robotDrive.TankDrive(kDriveAgainstCPSpeed, kDriveAgainstCPSpeed); // press against control panel
+		m_robotDrive.TankDrive(-kDriveAgainstCPSpeed, -kDriveAgainstCPSpeed); // press against control panel
 		MoveTurretToManualPosition(kTurretUP); // hold turret in position
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 		
@@ -620,7 +654,7 @@ public:
 		double confidence = 0.0;
 		frc::SmartDashboard::PutNumber("CP COMPLETE", false);
 
-		m_robotDrive.TankDrive(kDriveAgainstCPSpeed, kDriveAgainstCPSpeed); // press against control panel
+		m_robotDrive.TankDrive(-kDriveAgainstCPSpeed, -kDriveAgainstCPSpeed); // press against control panel
 		MoveTurretToManualPosition(kTurretUP); // hold turret in position
 		m_ponytail_solenoid.Set(frc::DoubleSolenoid::kReverse); // lower spinner here
 
@@ -787,7 +821,7 @@ public:
 		}
 		bool reset_yaw_button_pressed = false;  // reset gyro angle
 		bool hang_button = false;
-		bool drive_to_cp = false;
+		bool chase_cells_button = false;
 		bool spin_control_panel_button = false;
 		bool spin_to_color_pressed = false;
 		frc::Color spin_to_color = kNoColor;
@@ -809,8 +843,8 @@ public:
 		} else { // color buttons have normal functions
 			reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
 			hang_button = m_stick->GetRawButton(2);
-			drive_to_cp = m_stick->GetRawButton(3);
-			spin_control_panel_button = m_stick->GetRawButton(4);
+			chase_cells_button = m_stick->GetRawButton(4);
+			spin_control_panel_button = m_stick->GetRawButton(3);
 		}
 		bool deploy_hanger_pressed = false;
 		if (m_stick->GetRawButton(6) && m_stick->GetRawButton(8)) {
@@ -969,6 +1003,11 @@ public:
 			m_need_to_reset_spinner = false;
 		}
 		// frc::SmartDashboard::PutNumber("wheel state", m_wheel_state);
+
+		// auto-chase balls
+		if (chase_cells_button) {
+			ChasePowerCells();
+		}
 		
 		if (turret_manual_position != 0) {
 			m_need_to_reset_manual_turret_move = true;
@@ -1015,6 +1054,23 @@ public:
 			// Stop robot
 			m_robotDrive.ArcadeDrive(0.0, 0.0);
 			}
+		} else if (m_autoSelected == kAutoNameMoveOnly) {
+				double motor_speed = 0.0;
+				if (m_autoSelected_options_dir == kAutoOptionForward) {
+					motor_speed = kAutoDriveSpeed;
+				} else if (m_autoSelected_options_dir == kAutoOptionBackward) {
+					motor_speed = -kAutoDriveSpeed;
+				}				
+				if (m_autoSelected_options_speed == kAutoOptionFast) {
+					motor_speed *= 2;
+				}
+				if (abs(m_leftfront.GetSelectedSensorPosition(0)) < kAutoDriveDistance) {
+					m_robotDrive.TankDrive(motor_speed, motor_speed);
+					// frc::SmartDashboard::PutString("Auto Mode", "moving");
+				} else {
+					m_robotDrive.TankDrive(0, 0);
+					// frc::SmartDashboard::PutString("Auto Mode", "done moving");
+				}
 		} else if (m_autoSelected == kAutoNameShootAndMove) {
 			// frc::SmartDashboard::PutString("Auto Mode", "kAutoNameShootAndMove");
 			if (m_autoSelected_options_wait == kAutoOptionWait && m_timer.Get() < 3) {
