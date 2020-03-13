@@ -71,7 +71,7 @@ while 1:
     frame = frame + 1
     for index in range (0, count):
       #print('[BLOCK: SIG=%d X=%3d Y=%3d WIDTH=%3d HEIGHT=%3d]' % (blocks[index].m_signature, blocks[index].m_x, blocks[index].m_y, blocks[index].m_width, blocks[index].m_height))
-      if (blocks[index].m_y > minY) and (blocks[index].m_age > 0) and (blocks[index].m_y > blocks[index_of_closest].m_y):
+      if (blocks[index].m_y > minY) and (blocks[index].m_age > 0) and (blocks[index].m_y < blocks[index_of_closest].m_y):
         index_of_closest = index
       #adding values to networktable
       pb.putNumber("FRAME",frame)
@@ -83,3 +83,4 @@ while 1:
       pb.putNumber("ANGLE",blocks[index_of_closest].m_angle)
       pb.putNumber("INDEX",blocks[index_of_closest].m_index)
       pb.putNumber("AGE",blocks[index_of_closest].m_age)
+
