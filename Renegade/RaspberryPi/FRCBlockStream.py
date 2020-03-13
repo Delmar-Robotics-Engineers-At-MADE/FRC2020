@@ -1,6 +1,6 @@
 #This program streams block data from a pixy2 to pynetworktables in order to communicate with a ROBORIO, intended to track yellow energy orbs, It takes the server IP as a parameter
 from __future__ import print_function
-import pixy
+#import pixy
 
 import sys
 import time
@@ -44,9 +44,16 @@ print('Connected to networktable server. Now streaming pixy blocks data\n')
 #Creating name of subtable to add 
 pb = NetworkTables.getTable("PixyBlocks")
 
+status = -1 # -1 means camera is not inited yet
 
-pixy.init()
-pixy.change_prog ("color_connected_components");
+while (status == -1):
+  try:
+    pixy.init()
+    pixy.change_prog ("color_connected_components");
+    status = 0
+  except:
+    pb.putNumber("STATUS",-1) # -1 means camera exception
+print ('successfully inited pixycam')
 
 class Blocks (Structure):
   _fields_ = [ ("m_signature", c_uint),
@@ -64,9 +71,15 @@ minY = 10
 
 while 1:
   index_of_closest = 0
-  count = pixy.ccc_get_blocks (100, blocks)
+  try:
+    count = pixy.ccc_get_blocks (100, blocks)
+  except:
+    count = 0
 
-  if count > 0:
+  if count == 0:
+    pb.putNumber("STATUS",0) # no targets
+  else:
+    pb.putNumber("STATUS",1) # 1 means targets seen
     #print('frame %3d:' % (frame))
     frame = frame + 1
     for index in range (0, count):
