@@ -39,7 +39,7 @@ using namespace frc;
 	const static double kSlowSpeedFactor = 0.7;
 	const static double kFastSpeedFactor = 0.9;
 	const static double kMinTargetAreaPercent = 0.1;
-	const static double kDriveAgainstCPSpeed = 0.2;
+	const static double kDriveAgainstCPSpeed = 0.25;
 
 	const static double kConveyerSpeed = 0.75;
 	const static double kIntakeSpeed = 0.7;
@@ -51,7 +51,7 @@ using namespace frc;
 	const static double kInitialShooterSlope = 300;
 
 	const static double kMinColorConfidence = 0.85;
-	const static double kControlPanelSpeed = 0.6;
+	const static double kControlPanelSpeed = 0.8;
 
 	const static double kTurretSpeedInitial = 0.4;
 	const static double kTurretSpeedMax = 0.6;
@@ -957,6 +957,8 @@ public:
 				m_robotDrive.TankDrive(left_power, right_power, false);
 				// frc::SmartDashboard::PutNumber ("Left power", left_power);
 				// frc::SmartDashboard::PutNumber ("Right power", right_power);
+			} else if (spin_control_panel_button || spin_to_color_pressed) {
+				// let cp program control wheels
 			} else {
 				// not rotating; drive by stick
 				m_robotDrive.ArcadeDrive(ScaleSpeed(robot_rel_Y, speed_factor), ScaleSpeed(robot_rel_X, speed_factor));
