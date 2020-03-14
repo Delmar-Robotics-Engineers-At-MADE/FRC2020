@@ -60,22 +60,26 @@ class Blocks (Structure):
 
 blocks = BlockArray(100)
 frame = 0
+minY = 10
 
 while 1:
+  index_of_closest = 0
   count = pixy.ccc_get_blocks (100, blocks)
 
   if count > 0:
-    print('frame %3d:' % (frame))
+    #print('frame %3d:' % (frame))
     frame = frame + 1
     for index in range (0, count):
-      print('[BLOCK: SIG=%d X=%3d Y=%3d WIDTH=%3d HEIGHT=%3d]' % (blocks[index].m_signature, blocks[index].m_x, blocks[index].m_y, blocks[index].m_width, blocks[index].m_height))
+      #print('[BLOCK: SIG=%d X=%3d Y=%3d WIDTH=%3d HEIGHT=%3d]' % (blocks[index].m_signature, blocks[index].m_x, blocks[index].m_y, blocks[index].m_width, blocks[index].m_height))
+      if (blocks[index].m_y > minY) and (blocks[index].m_age > 0) and (blocks[index].m_y > blocks[index_of_closest].m_y):
+        index_of_closest = index
       #adding values to networktable
       pb.putNumber("FRAME",frame)
-      pb.putNumber("SIG",blocks[index].m_signature)
-      pb.putNumber("X",blocks[index].m_x)
-      pb.putNumber("Y",blocks[index].m_y)
-      pb.putNumber("WIDTH",blocks[index].m_width)
-      pb.putNumber("HEIGHT",blocks[index].m_height)
-      pb.putNumber("ANGLE",blocks[index].m_angle)
-      pb.putNumber("INDEX",blocks[index].m_index)
-      pb.putNumber("AGE",blocks[index].m_age)
+      pb.putNumber("SIG",blocks[index_of_closest].m_signature)
+      pb.putNumber("X",blocks[index_of_closest].m_x)
+      pb.putNumber("Y",blocks[index_of_closest].m_y)
+      pb.putNumber("WIDTH",blocks[index_of_closest].m_width)
+      pb.putNumber("HEIGHT",blocks[index_of_closest].m_height)
+      pb.putNumber("ANGLE",blocks[index_of_closest].m_angle)
+      pb.putNumber("INDEX",blocks[index_of_closest].m_index)
+      pb.putNumber("AGE",blocks[index_of_closest].m_age)
