@@ -53,6 +53,72 @@
               "_source0": "network_table:///SmartDashboard/Auto Wait?",
               "_title": "Auto Wait?"
             }
+          },
+          "0,1": {
+            "size": [
+              1,
+              1
+            ],
+            "content": {
+              "_type": "Text View",
+              "_source0": "network_table:///SmartDashboard/shoot slope",
+              "_title": "shoot slope"
+            }
+          },
+          "1,1": {
+            "size": [
+              1,
+              1
+            ],
+            "content": {
+              "_type": "Text View",
+              "_source0": "network_table:///SmartDashboard/CP COMPLETE",
+              "_title": "CP COMPLETE"
+            }
+          },
+          "2,1": {
+            "size": [
+              1,
+              1
+            ],
+            "content": {
+              "_type": "Text View",
+              "_source0": "network_table:///SmartDashboard/color",
+              "_title": "color"
+            }
+          },
+          "3,1": {
+            "size": [
+              1,
+              1
+            ],
+            "content": {
+              "_type": "Text View",
+              "_source0": "network_table:///SmartDashboard/confidence",
+              "_title": "confidence"
+            }
+          },
+          "4,1": {
+            "size": [
+              1,
+              1
+            ],
+            "content": {
+              "_type": "Text View",
+              "_source0": "network_table:///SmartDashboard/flywheel err",
+              "_title": "flywheel err"
+            }
+          },
+          "5,1": {
+            "size": [
+              1,
+              1
+            ],
+            "content": {
+              "_type": "Text View",
+              "_source0": "network_table:///SmartDashboard/Ball chase",
+              "_title": "Ball chase"
+            }
           }
         }
       }
@@ -177,9 +243,9 @@
     }
   ],
   "windowGeometry": {
-    "x": 19.0,
-    "y": 13.0,
-    "width": 1225.0,
-    "height": 480.0
+    "x": -8.0,
+    "y": 0.0,
+    "width": 1607.0,
+    "height": 556.0
   }
 }
