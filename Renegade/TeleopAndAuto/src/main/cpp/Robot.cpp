@@ -800,14 +800,12 @@ public:
 		Left Stick	Robot relative arcade	
 		Right Stick	Field relative arcade	
 		D Pad	Rotate to compass pts	
-		Button 1	Reset Yaw / color	
-		Button 2	Hang / color	
-		Button 3	Drive to CP / color	
-		Button 4	Spin control panel / color	
+		Button 1	Reset Yaw / (color)	
+		Button 2	(color)
+		Button 3	Drive to CP / (color)	
+		Button 4	Spin control panel / (color)	
 		Button 5	Spin to color	
-		Button 6	6+8 to deploy hanger	
-		Button 7	Turbo speed	
-		Button 8	Hang	
+		Button 7	Turbo speed		
 		*/
 		double robot_rel_X = m_stick->GetRawAxis(0);  // robot relative
 		double robot_rel_Y = -m_stick->GetRawAxis(1);
@@ -829,7 +827,6 @@ public:
 			rotateToAngle = true;
 		}
 		bool reset_yaw_button_pressed = false;  // reset gyro angle
-		bool hang_button = false;
 		bool chase_cells_button = false;
 		bool spin_control_panel_button = false;
 		bool spin_to_color_pressed = false;
@@ -851,37 +848,26 @@ public:
 			// frc::SmartDashboard::PutString ("Spin to", ColorToString(spin_to_color));
 		} else { // color buttons have normal functions
 			reset_yaw_button_pressed = m_stick->GetRawButton(1);  // reset gyro angle
-			hang_button = m_stick->GetRawButton(2);
 			chase_cells_button = m_stick->GetRawButton(4);
 			spin_control_panel_button = m_stick->GetRawButton(3);
 		}
-		bool deploy_hanger_pressed = false;
-		if (m_stick->GetRawButton(6) && m_stick->GetRawButton(8)) {
-			deploy_hanger_pressed = true;
-		}
 		
-		bool hang_pressed = false;
-		// if (m_stick->GetRawButton(5) && m_stick->GetRawButton(7)) {
-		// 	hang_pressed = true;
-		// } else { // no hang selected
 		bool high_gear_button_presssed = m_stick->GetRawButton(7);
 
-
 		/****************************************** co-pilot
-		Left Stick	Manual turret dir/speed	
+		Left Stick	deploy hanger and hang	
 		Right Stick	Manual intake in/out	
 		D Pad	Turret positioning	
-		Button 1		
+		Button 1	+ left Y to deploy hanger
 		Button 2	Automatic shoot	
-		Button 3		
+		Button 3	+ left Y to hang
 		Button 4	Automatic intake	
 		Button 5	Boost shooter up	
 		Button 6	Conveyer in/up	
 		Button 7	De-boost shooter down	
 		Button 8	Conveyer down/out	
 		*/ 
-		// double shooter_X = m_stick_copilot->GetRawAxis(0);  // manual turret operation
-		// double shooter_Y = m_stick_copilot->GetRawAxis(1);
+		double hanger_Y = m_stick_copilot->GetRawAxis(1);
 		// double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y); // could be used for manual shooter speed
 		double intake_Y = m_stick_copilot->GetRawAxis(3);
 
@@ -896,7 +882,9 @@ public:
 			turret_manual_position = kTurretLEFT;
 		}
 
+		bool hanger_deploy_button = m_stick_copilot->GetRawButton(1);
 		bool auto_shoot_button =  m_stick_copilot->GetRawButton(2);
+		bool hang_button = m_stick_copilot->GetRawButton(3);
 		bool auto_intake_button =  m_stick_copilot->GetRawButton(4);
 		bool boost_shooter_up_button =  m_stick_copilot->GetRawButton(5);
 		bool boost_shooter_down_button =  m_stick_copilot->GetRawButton(7);
