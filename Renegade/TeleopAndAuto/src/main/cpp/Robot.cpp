@@ -802,8 +802,8 @@ public:
 		D Pad	Rotate to compass pts	
 		Button 1	Reset Yaw / (color)	
 		Button 2	(color)
-		Button 3	Drive to CP / (color)	
-		Button 4	Spin control panel / (color)	
+		Button 3	Spin control panel / (color)	
+		Button 4	Auto chase balls / (color)
 		Button 5	Spin to color	
 		Button 7	Turbo speed		
 		*/
