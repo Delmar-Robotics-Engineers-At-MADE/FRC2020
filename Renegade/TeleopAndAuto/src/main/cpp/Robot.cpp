@@ -488,17 +488,24 @@ public:
 	}
 
 	void ChasePowerCells() {
-		double pixy_X = 167 - m_pixytable->GetNumber("X",0.0);
-		frc::SmartDashboard::PutNumber("Ball X", pixy_X);
+		bool ball_seen = m_pixytable->GetNumber("STATUS", -1);
+		if (ball_seen == 1) {
+			double pixy_X = 167 - m_pixytable->GetNumber("X",0.0);
+			frc::SmartDashboard::PutString("Balls", "yes");
+			frc::SmartDashboard::PutNumber("Ball X", pixy_X);
 
-		m_pidController_pixycam->SetSetpoint(0);
-		double diff_speed = m_pidController_pixycam->Calculate(pixy_X);
+			double diff_speed = m_pidController_pixycam->Calculate(pixy_X);
 
-		// move robot
-		frc::SmartDashboard::PutNumber("Ball chase", diff_speed);
-		m_robotDrive.TankDrive(-diff_speed+kChaseBallSpeed, diff_speed+kChaseBallSpeed, false);
+			// move robot
+			frc::SmartDashboard::PutNumber("Ball chase", diff_speed);
+			m_robotDrive.TankDrive(-diff_speed+kChaseBallSpeed, diff_speed+kChaseBallSpeed, false);
 
-		// don't reset pid controller
+			// don't reset pid controller
+		} else if (ball_seen == 0) { // no balls seen
+			frc::SmartDashboard::PutString("Balls", "no");
+		} else { // error of some kind
+			frc::SmartDashboard::PutString("Balls", "error");
+		}
 	}
 
 	bool TrackTargetWithTurret(double targetOffsetAngle) {
@@ -507,7 +514,7 @@ public:
 		double current_pos = m_turret->GetSelectedSensorPosition(0);
 		if (current_pos > kTurretLimitStarboard && current_pos < kTurretLimitPort) {
 			// frc::SmartDashboard::PutString("turr tracking", "safe");
-			m_pidController_limelight_turret->SetSetpoint(0);
+			m_pidController_limelight_turret->SetSetpoint(0);  // try moving this to RobotInit() and doing it only once
 			double new_speed = m_pidController_limelight_turret->Calculate(targetOffsetAngle);
 			// frc::SmartDashboard::PutNumber("turr speed", new_speed);
 			// frc::SmartDashboard::PutNumber("off ang", targetOffsetAngle);
@@ -561,6 +568,7 @@ public:
 			m_pidController_limelight_turret->SetTolerance(kLimelightTolerance, kLimelightTolerance);  // within 8 degrees of target is considered on set point
 			m_pidController_pixycam = new frc2::PIDController (P, I, D);
 			m_pidController_pixycam->SetTolerance(kPixyTolerance, kPixyTolerance);  // within 8 degrees of target is considered on set point
+			m_pidController_pixycam->SetSetpoint(0);  // always use same setpoint
 
 			// position turret
 			MoveTurretToStartingPosition();
@@ -872,10 +880,9 @@ public:
 		Button 7	De-boost shooter down	
 		Button 8	Conveyer down/out	
 		*/ 
-		double shooter_X = m_stick_copilot->GetRawAxis(0);  // manual turret operation
-		double shooter_Y = m_stick_copilot->GetRawAxis(1);
-		double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y);
-		double intake_X = m_stick_copilot->GetRawAxis(2); // manual turret operation
+		// double shooter_X = m_stick_copilot->GetRawAxis(0);  // manual turret operation
+		// double shooter_Y = m_stick_copilot->GetRawAxis(1);
+		// double shooter_R = sqrt(shooter_X*shooter_X + shooter_Y*shooter_Y); // could be used for manual shooter speed
 		double intake_Y = m_stick_copilot->GetRawAxis(3);
 
 		long turret_manual_position = 0;
@@ -976,7 +983,6 @@ public:
 		// ++++++++++++++++++++ shooter +++++++++++++++++++++++++++
 		bool manual_conveyer_ok = false;
 		double conveyer_speed = 0.0;
-		double shooter_speed_in_units = 0.0;
 		
 		if (auto_shoot_button) {
 			m_limetable->PutNumber("ledMode",3.0); // LED on
