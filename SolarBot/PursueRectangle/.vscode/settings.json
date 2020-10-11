@@ -59,6 +59,7 @@
     "tuple": "cpp",
     "typeinfo": "cpp",
     "utility": "cpp",
-    "*.inc": "cpp"
+    "*.inc": "cpp",
+    "algorithm": "cpp"
   }
 }
