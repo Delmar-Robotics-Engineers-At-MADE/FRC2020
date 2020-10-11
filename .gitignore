@@ -22,3 +22,5 @@ ProtoBot/PositionClosedLoop/build/
 Renegade/Tests/PositionClosedLoop/.gradle/6.0.1/
 Renegade/Tests/PositionClosedLoop/.gradle/buildOutputCleanup/
 Renegade/Tests/PositionClosedLoop/build/
+SolarBot/PursueRectangle/safety/
+SolarBot/PursueRectangle/temp/
