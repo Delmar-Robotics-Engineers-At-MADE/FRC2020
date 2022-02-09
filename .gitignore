@@ -24,3 +24,6 @@ Renegade/Tests/PositionClosedLoop/.gradle/buildOutputCleanup/
 Renegade/Tests/PositionClosedLoop/build/
 SolarBot/PursueRectangle/safety/
 SolarBot/PursueRectangle/temp/
+SolarBot/PursueRectangle-Imported/
+SteamBot/build/
+SteamBot/.gradle/
