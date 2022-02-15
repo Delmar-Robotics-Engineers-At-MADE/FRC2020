@@ -8,7 +8,8 @@ import logging
 import threading
 
 #had trouble finding pynetworktables module
-sys.path.append('/home/pi/.local/lib/python3.7/dist-packages/pynetworktables-2019.0.1-py3.7.egg')
+#sys.path.append('/home/pi/.local/lib/python3.7/dist-packages/pynetworktables-2019.0.1-py3.7.egg')
+# real solution: run with python3.7
 
 from networktables import NetworkTables
 
